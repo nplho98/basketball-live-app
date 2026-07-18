@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.BasketballLiveYT" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand_orange</item>
+        <item name="colorPrimaryDark">@color/brand_orange_dark</item>
+        <item name="colorAccent">@color/brand_orange</item>
+        <item name="android:statusBarColor" tools:targetApi="l">@color/black</item>
+        <!-- v0.7.8：Theme.MaterialComponents 預設會把 colorPrimary 當成 backgroundTint 自動染在
+             所有 <Button> 上，蓋掉自訂 shape drawable 的顏色（開播鍵設綠色卻顯示橘色的根因）。
+             改用 Widget.AppCompat.Button 當預設按鈕樣式，取消這個自動染色行為。 -->
+        <item name="android:buttonStyle">@style/Widget.AppCompat.Button</item>
+        <item name="buttonStyle">@style/Widget.AppCompat.Button</item>
+    </style>
+</resources>

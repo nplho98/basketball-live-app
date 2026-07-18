@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">籃球直播</string>
+
+    <!-- 登入頁 -->
+    <string name="login_title">籃球直播 APP</string>
+    <string name="login_subtitle">用 YouTube 帳號登入後即可自動建立直播、一鍵開播</string>
+    <string name="login_google_button">使用 Google 帳號登入</string>
+    <string name="login_switch_account_button">切換其他 Google 帳號</string>
+    <string name="login_dev_note">未登入也能開播：可到設定頁填入「串流金鑰（測試用）」改用手動模式</string>
+    <string name="login_scope_denied_message">需要授權 YouTube 權限才能使用本 APP 自動建立直播的功能</string>
+    <string name="login_failed_format">Google 登入失敗（代碼 %1$d），請重試</string>
+
+    <!-- 直播主畫面 -->
+    <string name="camera_permission_denied_message">需要相機與麥克風權限才能直播\n請至系統設定開啟權限後重新進入</string>
+    <string name="live_start_button">開播</string>
+    <string name="live_stop_button">收播</string>
+    <!-- v0.14.0：工作2——開播過渡期（按下開播確認～onConnectionSuccess 之間）按鈕灰底不可按 -->
+    <string name="live_button_pending">建立直播中…</string>
+    <string name="start_live_confirm_title">開始直播</string>
+    <string name="start_live_confirm_message">確定要開始直播嗎？</string>
+    <string name="start_live_confirm_ok">開播</string>
+    <string name="start_live_reset_scoreboard_checkbox">重置計分板（分數／犯規／節數）</string>
+    <string name="start_live_scoreboard_reset_toast">計分板已重置</string>
+    <!-- v0.10.0：同步錄影備份開啟時，開播確認框追加的空間預估提示 -->
+    <string name="start_live_record_estimate_format">將同步錄影（約 %1$.1f GB／小時），目前可用空間 %2$.1f GB</string>
+    <string name="exposure_label">曝光</string>
+    <string name="focus_lock_button">定焦鎖定</string>
+    <string name="focus_unlock_button">解除定焦</string>
+    <string name="settings_entry_button">設定</string>
+    <string name="settings_locked_while_live_message">直播中無法進入設定，請先收播</string>
+
+    <!-- v0.5.0：相機控制真實生效（曝光補償／定焦鎖定／音量鍵變焦）提示訊息 -->
+    <string name="camera_not_ready_message">相機尚未就緒，請稍候再試</string>
+    <string name="exposure_not_supported_message">此裝置不支援曝光調整</string>
+    <string name="exposure_limit_upper_message">已達曝光上限，無法再增加</string>
+    <string name="exposure_limit_lower_message">已達曝光下限，無法再降低</string>
+    <string name="exposure_adjust_failed_format">曝光調整失敗：%1$s</string>
+    <string name="focus_lock_not_supported_message">此裝置／鏡頭不支援手動鎖定對焦</string>
+    <string name="focus_lock_failed_format">定焦操作失敗：%1$s</string>
+
+    <!-- v0.5.1：點觸／長按對焦手勢提示訊息 -->
+    <string name="focus_lock_hint_message">請長按畫面對焦後鎖定</string>
+    <string name="focus_tap_not_supported_message">此裝置不支援點觸對焦（無法讀取相機規格）</string>
+    <string name="focus_tap_failed_message">對焦失敗，請點選畫面其他位置再試一次</string>
+    <string name="zoom_limit_reached_message">已達變焦範圍極限</string>
+    <string name="zoom_adjust_failed_format">變焦調整失敗：%1$s</string>
+    <string name="zoom_value_format">%1$.1fx</string>
+    <string name="team_home_default">主隊</string>
+    <string name="team_away_default">客隊</string>
+    <string name="period_format">第 %1$d 節</string>
+
+    <!-- 隊名編輯對話框 -->
+    <string name="edit_team_home_name_title">修改主隊隊名</string>
+    <string name="edit_team_away_name_title">修改客隊隊名</string>
+    <string name="edit_team_name_hint">輸入隊名，留空則還原預設</string>
+    <string name="dialog_confirm_button">確定</string>
+    <string name="dialog_cancel_button">取消</string>
+
+    <!-- 頂部操作列（犯規／節數） -->
+    <string name="foul_home_minus_button">主隊犯規 −</string>
+    <string name="foul_home_plus_button">主隊犯規 ＋</string>
+    <string name="period_minus_button">節數 −</string>
+    <string name="period_plus_button">節數 ＋</string>
+    <string name="foul_away_minus_button">客隊犯規 −</string>
+    <string name="foul_away_plus_button">客隊犯規 ＋</string>
+
+    <!-- 左側欄：分享 -->
+    <string name="share_button">分享直播</string>
+    <string name="share_link_not_ready_message">尚未開播，開播後才有直播連結可分享</string>
+
+    <!-- 左側欄：分數清零 -->
+    <string name="reset_scores_button">分數清零\n犯規清零</string>
+    <string name="reset_scores_confirm_title">分數清零</string>
+    <string name="reset_scores_confirm_message">確定要把兩隊分數與犯規都歸零嗎？</string>
+    <string name="reset_scores_confirm_ok">清零</string>
+    <string name="reset_scores_done_toast">兩隊分數與犯規已清零</string>
+
+    <!-- 左側欄：關閉軟體 -->
+    <string name="close_app_button">關閉軟體</string>
+    <string name="close_app_locked_while_live_message">直播中無法關閉軟體，請先收播</string>
+    <string name="close_app_confirm_title">關閉軟體</string>
+    <string name="close_app_confirm_message">確定要關閉籃球直播 APP 嗎？</string>
+    <string name="close_app_confirm_ok">關閉</string>
+
+    <!-- 返回鍵：直播中確認收播離開 -->
+    <string name="back_press_confirm_title">結束直播</string>
+    <string name="back_press_confirm_message">確定要結束直播並離開嗎？</string>
+    <string name="back_press_confirm_ok">確定</string>
+
+    <!-- 開播：YouTube API 建立直播流程的狀態與錯誤提示 -->
+    <string name="live_creating_broadcast">● 建立直播中…</string>
+    <string name="live_broadcast_created_toast">已建立 YouTube 直播，開始推流</string>
+    <string name="live_manual_mode_toast">改用手動金鑰模式推流</string>
+    <string name="live_no_account_no_key_message">尚未登入 YouTube 帳號，且未設定手動串流金鑰，請先登入或到設定頁填入金鑰</string>
+    <string name="live_network_error_message">網路連線異常，無法建立 YouTube 直播</string>
+    <string name="live_quota_error_message">YouTube API 用量已達每日配額上限，請稍後再試</string>
+    <string name="live_channel_not_enabled_message">此 Google 帳號的 YouTube 頻道尚未開通直播功能，請至 YouTube 網站開通後再試</string>
+    <string name="live_unknown_api_error_format">建立 YouTube 直播失敗（%1$d：%2$s）</string>
+    <string name="live_reauth_needed_message">Google 授權已過期或需要重新確認，請完成授權後再按一次開播</string>
+    <string name="live_reauth_failed_message">未完成重新授權，暫時無法自動建立 YouTube 直播</string>
+    <string name="live_fallback_to_manual_format">%1$s，改用手動金鑰模式推流</string>
+    <string name="live_fallback_no_manual_key_format">%1$s，且尚未設定手動串流金鑰，請先處理後再開播</string>
+
+    <!-- v0.10.0：同步錄影備份——錄影生命週期＝直播 session，鐵律：錄影失敗絕不能拖垮直播 -->
+    <string name="record_failed_message_format">錄影備份失敗，直播不受影響：%1$s</string>
+    <string name="record_unknown_error_message">未知原因</string>
+    <string name="record_custom_folder_fallback_toast">自訂資料夾錄影失敗，已自動改用相簿續錄</string>
+    <string name="record_saved_gallery_toast">錄影已儲存到相簿</string>
+    <string name="record_saved_path_format">錄影已儲存：%1$s</string>
+
+    <!-- v0.10.1：右上角電池溫度顯示——38 以下藍「健康」、38~42（含42）黃「請降溫」、
+         超過 42 紅「效能已下降」；轉紅那一刻跳一次 Toast -->
+    <string name="temp_display_format">%1$.1f°C %2$s</string>
+    <string name="temp_status_healthy">健康</string>
+    <string name="temp_status_cooldown">請降溫</string>
+    <string name="temp_status_throttled">效能已下降</string>
+    <string name="temp_overheat_toast">手機過熱，效能已下降——建議移除手機殼、避免陽光直曬</string>
+
+    <!-- v0.10.1：左上角實際/設定碼率顯示（直播中才顯示） -->
+    <string name="bitrate_status_format">↑%1$.1f / %2$.1f Mbps</string>
+
+    <!-- v0.12.0：直播前景服務——常駐通知文字（見 LiveForegroundService） -->
+    <string name="foreground_service_channel_name">直播進行中通知</string>
+    <string name="foreground_service_status_live">● 直播進行中</string>
+    <string name="foreground_service_status_reconnecting">● 重新連線中…</string>
+
+    <!-- v0.12.0：斷線重連強化——重連中顯示已重試次數 -->
+    <string name="live_reconnecting_format">● 重新連線中…（第 %1$d 次）</string>
+
+    <!-- v0.12.0：AE/AF 同步鎖定——反射失敗或裝置不支援時退回只鎖對焦，只提示一次 -->
+    <string name="ae_sync_unsupported_message">此裝置不支援同步鎖定曝光，長按仍會鎖定對焦</string>
+
+    <!-- v0.12.2：全域當機記錄——見 CrashLogger／LoginActivity -->
+    <string name="crash_log_detected_toast_format">偵測到上次未預期關閉的記錄（%1$s），已儲存在裝置的 crashlog 資料夾</string>
+
+    <!-- v0.12.0：斷線重連強化——enableAutoStop 改 false，收播由 APP 主動呼叫 YouTube API 結束直播 -->
+    <!-- v0.12.2：失敗訊息維持原樣（已自動重試一次才會顯示，見 LiveActivity.attemptEndYouTubeBroadcast）；
+         新增成功提示字串 -->
+    <string name="live_end_broadcast_failed_format">YouTube 直播結束失敗（%1$s），請到 YouTube 工作室手動結束直播</string>
+    <string name="live_end_broadcast_success_message">YouTube 直播已結束</string>
+
+    <!-- 三面板（上/左/右）收合把手／收合箭頭；底部計分列 v0.8.0 起永遠顯示，不再有收合把手 -->
+    <string name="collapse_top_panel_desc">收起操作列</string>
+    <string name="expand_top_panel_desc">展開操作列</string>
+    <string name="collapse_left_panel_desc">收起左側欄</string>
+    <string name="expand_left_panel_desc">展開左側欄</string>
+    <string name="collapse_right_panel_desc">收起右側欄</string>
+    <string name="expand_right_panel_desc">展開右側欄</string>
+
+    <!-- v0.13.0：功能 A 精彩時刻標記 -->
+    <string name="highlight_mark_button">⭐標記</string>
+    <string name="highlight_marked_toast">已標記</string>
+    <string name="highlight_list_dialog_title">精彩清單</string>
+    <string name="highlight_list_empty">本場尚無標記</string>
+    <string name="highlight_adjust_minus5">−5秒</string>
+    <string name="highlight_adjust_plus5">＋5秒</string>
+    <string name="highlight_delete_button">刪除</string>
+    <string name="highlight_copy_chapter_button">複製章節格式</string>
+    <string name="highlight_copy_chapter_toast">已複製章節格式到剪貼簿</string>
+    <string name="highlight_share_line_button">分享LINE</string>
+    <!-- v0.15.2：章節文字固定首行（YouTube 規定章節第一行必須 00:00） -->
+    <string name="highlight_chapter_opening_line">00:00 開場</string>
+    <string name="highlight_close_button">關閉</string>
+    <string name="highlight_only_while_live_toast">請先開播才能使用標記</string>
+
+    <!-- v0.15.0：GL 渲染錯誤已被回呼接住（沒有閃退），一場只提示一次 -->
+    <string name="render_error_skipped_toast">畫面渲染出現異常已自動略過，直播持續中（已寫入記錄）</string>
+
+    <!-- v0.15.1：孤兒直播回收——啟動時偵測到上一場沒收播成功，已自動補送結束指令 -->
+    <string name="live_orphan_broadcast_ended_toast">偵測到上一場直播未正常結束，已自動結束 YouTube 端直播</string>
+
+    <!-- v0.16.0：功能三——休息畫面（黑底四節計分表）；按鈕與⭐鈕鏡像對稱在左下
+         v0.16.2：樣式09 改樣式06、預覽也可切（僅直播中提示與總分表頭字串移除；
+         進入提示改中性文字——預覽切休息不停相機，不能寫死「相機暫停降溫」） -->
+    <string name="break_screen_button">休息畫面</string>
+    <string name="break_return_button">返回直播</string>
+    <string name="break_entered_toast">已切換休息畫面</string>
+    <string name="break_exited_toast">已返回直播畫面</string>
+    <string name="break_quarter_header_format">第%1$d節</string>
+    <string name="break_empty_cell">–</string>
+
+    <!-- 設定頁 -->
+    <string name="settings_title">直播設定</string>
+    <string name="settings_stream_title_label">直播標題</string>
+    <string name="settings_stream_title_hint">輸入本場直播標題</string>
+
+    <!-- v0.16.0：功能一——直播標題雙模板 -->
+    <string name="settings_title_template_section">直播標題模板</string>
+    <string name="settings_title_template_1_label">模板一</string>
+    <string name="settings_title_template_2_label">模板二</string>
+    <string name="settings_title_template_1_hint">輸入標題模板一（可保存）</string>
+    <string name="settings_title_template_2_hint">輸入標題模板二（可保存）</string>
+    <string name="settings_title_final_label">本次直播標題（開播實際使用，可在此微調）</string>
+
+    <!-- v0.16.0：功能二——不延遲最低設定一鍵套用 -->
+    <string name="settings_low_latency_button">不延遲最低設定（720P／30fps／2300Kbps）</string>
+    <string name="settings_low_latency_applied_toast">已套用不延遲最低設定（720P／30fps／2300Kbps）</string>
+    <string name="settings_event_name_label">賽事名稱（燒入計分板左側）</string>
+    <string name="settings_event_name_line1_hint">第一行（最多12字，留空則整塊不顯示）</string>
+    <string name="settings_event_name_line2_hint">第二行（最多12字，可留空）</string>
+    <string name="settings_stream_key_label">串流金鑰（測試用）</string>
+    <string name="settings_stream_key_hint">貼上 YouTube 直播的串流金鑰</string>
+    <string name="settings_stream_key_note">開發測試入口：正式版將改為帳號登入自動取得，不需手動輸入</string>
+    <string name="settings_privacy_label">隱私設定</string>
+    <string name="settings_resolution_label">解析度</string>
+    <string name="settings_fps_label">影格率 (fps)</string>
+    <string name="settings_bitrate_label">碼率</string>
+    <string name="settings_bitrate_auto_adjust_label">直播中碼率自動調整</string>
+    <string name="settings_bitrate_auto_adjust_note">開啟：網路壅塞時自動降碼率換取流暢度，恢復後緩慢調高。關閉：全程固定用上面選的碼率，網路撐不住時可能卡格。</string>
+    <string name="settings_save_button">儲存設定</string>
+    <string name="settings_account_label">YouTube 帳號</string>
+    <string name="settings_account_signed_in_format">目前登入：%1$s</string>
+    <string name="settings_account_signed_out">尚未登入，開播將改用手動串流金鑰</string>
+    <string name="settings_switch_account_button">登出／切換 Google 帳號</string>
+    <string name="settings_signed_out_toast">已登出，下次進入 APP 需重新登入</string>
+
+    <string name="settings_detect_network_button">偵測網路並建議設定</string>
+    <string name="settings_detect_network_testing">測速中…</string>
+    <string name="settings_detect_network_testing_hint">正在連續實測上傳速度（共 10 秒，如下方曲線）…</string>
+    <string name="settings_detect_network_progress_format">已測試 %1$d/10 秒，目前上傳速度：%2$.1f Mbps</string>
+    <string name="settings_detect_network_result_format">10 秒測速完成（已排除極端尖峰），參考上傳速度：%1$.1f Mbps，已依此套用建議設定（解析度／fps／碼率仍可再手動調整）</string>
+    <string name="settings_detect_network_failed_message">測速逾時或失敗，請確認網路連線後再試一次</string>
+    <!-- v0.12.2：有效（非 0）樣本為 0 個時顯示，跟上面「逾時或例外」的情況分開，避免混淆 -->
+    <string name="settings_detect_network_all_failed_message">測速失敗，請檢查網路連線</string>
+
+    <!-- v0.10.0：同步錄影備份——設定頁新增區塊，見 LiveActivity 類別頂端 KDoc -->
+    <string name="settings_record_section_title">同步錄影備份</string>
+    <string name="settings_record_enabled_label">同步錄影備份</string>
+    <string name="settings_record_resolution_label">錄影解析度</string>
+    <string name="settings_record_resolution_note">「與直播相同」共用編碼器、耗電更省，但網路差時備份畫質會跟著直播一起降低；選獨立解析度則錄影畫質全程恆定，代價是耗電發熱增加。2K/4K 檔案與發熱顯著增加（4K 約 9GB／小時），長時間直播建議先短時間試錄確認手機散熱</string>
+    <string name="settings_record_save_mode_label">錄影存檔位置</string>
+    <string name="settings_record_save_mode_note">自訂資料夾的影片不一定立刻出現在相簿，但檔案管理器一定找得到</string>
+    <string name="settings_record_folder_none">尚未選擇資料夾</string>
+    <string name="settings_record_folder_current_format">目前資料夾：%1$s</string>
+    <string name="settings_record_folder_cancelled_use_gallery_toast">已取消選擇資料夾，改用相簿</string>
+    <string name="settings_record_folder_cancelled_keep_previous_toast">已取消選擇資料夾，沿用先前選擇</string>
+
+    <!-- v0.13.0：功能 A 精彩時刻標記——設定頁欄位 -->
+    <string name="settings_highlight_rebound_seconds_label">標記回推秒數（⭐鈕記錄「目前時間－此秒數」）</string>
+
+    <string-array name="privacy_options">
+        <item>公開</item>
+        <item>不公開</item>
+        <item>私人</item>
+    </string-array>
+
+    <string-array name="resolution_options">
+        <item>1920x1080（1080p）</item>
+        <item>1280x720（720p）</item>
+        <item>854x480（480p）</item>
+    </string-array>
+
+    <string-array name="fps_options">
+        <item>24 fps</item>
+        <item>30 fps</item>
+        <item>60 fps</item>
+    </string-array>
+
+    <string-array name="bitrate_options">
+        <item>1400 Kbps</item>
+        <item>2300 Kbps</item>
+        <item>3300 Kbps</item>
+        <item>4000 Kbps</item>
+    </string-array>
+
+    <!-- v0.10.0：同步錄影備份選項，文字需與 StreamPrefs.RECORD_RESOLUTION_SAME_AS_LIVE／
+         RECORD_SAVE_MODE_GALLERY／RECORD_SAVE_MODE_CUSTOM_FOLDER 完全一致 -->
+    <!-- v0.10.4：新增 2K/4K（相機擷取會跟著用錄影解析度，是真畫質非放大；
+         裝置編碼器不支援雙編碼高解析時 prepareVideo 會失敗，沿用既有錯誤提示） -->
+    <string-array name="record_resolution_options">
+        <item>與直播相同</item>
+        <item>1280x720（720p）</item>
+        <item>1920x1080（1080p）</item>
+        <item>2560x1440（2K）</item>
+        <item>3840x2160（4K）</item>
+    </string-array>
+
+    <string-array name="record_save_mode_options">
+        <item>相簿</item>
+        <item>自訂資料夾…</item>
+    </string-array>
+
+    <!-- v0.13.0：功能 A 精彩時刻標記——設定頁「標記回推秒數」下拉，文字需與
+         StreamPrefs.DEFAULT_HIGHLIGHT_REBOUND_SECONDS／parseHighlightReboundSeconds 對應一致 -->
+    <string-array name="highlight_rebound_seconds_options">
+        <item>5 秒</item>
+        <item>10 秒</item>
+        <item>15 秒</item>
+        <item>20 秒</item>
+    </string-array>
+</resources>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- 品牌色：籃球橘 -->
+    <color name="brand_orange">#FF6F00</color>
+    <color name="brand_orange_dark">#C43E00</color>
+
+    <!-- 直播畫面用色 -->
+    <color name="camera_placeholder_bg">#FF1A1A1A</color>
+    <color name="scoreboard_bg">#CC000000</color>
+    <color name="live_red">#FFE53935</color>
+    <color name="live_green">#FF2E9E4F</color>
+    <!-- v0.14.0：工作2——開播按鈕過渡期灰色（建立直播中…／連線中…期間不可按） -->
+    <color name="live_pending_gray">#FF616161</color>
+    <color name="score_plus_button">#FF2E7D32</color>
+    <color name="score_minus_button">#FFC62828</color>
+
+    <!-- v0.8.11：曝光按鈕排查用測試色 -->
+    <color name="debug_test_blue">#FF1565C0</color>
+
+    <!-- v0.8.16：主客隊犯規 +/- 直排區分色 -->
+    <color name="foul_home_button">#FFF9A825</color>
+    <color name="foul_away_button">#FF6A1B9A</color>
+
+    <color name="surface_dark">#FF121212</color>
+    <color name="surface_light">#FFF5F5F5</color>
+    <color name="text_secondary">#FFB0B0B0</color>
+</resources>

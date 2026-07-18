@@ -1,0 +1,921 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black">
+
+    <!-- 相機預覽區：RootEncoder OpenGlView 真實預覽（計分板燒入濾鏡也掛在這層渲染） -->
+    <FrameLayout
+        android:id="@+id/cameraPreviewContainer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/bg_camera_placeholder"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <com.pedro.library.view.OpenGlView
+            android:id="@+id/openGlView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- v0.5.1：對焦圈動態圖示疊加層，見 LiveActivity.setupFocusGestures／FocusIndicatorView。
+             本身不攔截觸控（不可點擊，觸控會穿透到底下的 openGlView），只負責畫圓框動畫。 -->
+        <com.hopengzhe.basketballliveyt.FocusIndicatorView
+            android:id="@+id/focusIndicatorView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- 權限被拒或相機初始化失敗時顯示的提示文字，預設隱藏 -->
+        <TextView
+            android:id="@+id/tvCameraPlaceholder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/camera_permission_denied_message"
+            android:textColor="@color/text_secondary"
+            android:textAlignment="center"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <!-- ===================== 頂部操作列（往上收）：主隊犯規/節數/客隊犯規 ===================== -->
+    <!-- v0.4.1：面板內按鈕/文字整體縮小為原本 2/3；收合箭頭尺寸不變 -->
+    <LinearLayout
+        android:id="@+id/topPanelContainer"
+        android:clickable="true"
+        android:focusable="false"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginStart="72dp"
+        android:layout_marginEnd="72dp">
+
+        <LinearLayout
+            android:id="@+id/topOperationsRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:background="@drawable/bg_scoreboard_panel"
+            android:paddingVertical="5dp"
+            android:paddingHorizontal="5dp"
+            android:layout_marginTop="5dp">
+
+            <!-- v0.14.1：主隊 +3 特效相關 UI（原 v0.11.3 快速開關／v0.14.0 慶祝演出下拉入口）
+                 已依 Boss 拍板整段移除，見 LiveActivity 類別頂端 KDoc v0.14.1 條目 -->
+
+            <!-- v0.8.16：主隊犯規改直排（+ 在上、− 在下），黃底白字 -->
+            <!-- v0.9.8：Boss 要求犯規 − 移到犯規 + 旁邊，改回橫排（+ 左、− 右） -->
+            <!-- v0.9.13：Boss 要求主隊 +/− 位置互調（− 左、+ 右）；客隊維持 v0.9.8 的 + 左 − 右不變 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnFoulHomeMinus"
+                    style="@null"
+                    android:gravity="center"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:layout_margin="1dp"
+                    android:paddingHorizontal="7dp"
+                    android:paddingVertical="3dp"
+                    android:background="@drawable/bg_foul_home_button"
+                    android:backgroundTint="@null"
+                    android:text="@string/foul_home_minus_button"
+                    android:textColor="@color/white"
+                    android:textSize="8sp" />
+
+                <Button
+                    android:id="@+id/btnFoulHomePlus"
+                    style="@null"
+                    android:gravity="center"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:layout_margin="1dp"
+                    android:paddingHorizontal="7dp"
+                    android:paddingVertical="3dp"
+                    android:background="@drawable/bg_foul_home_button"
+                    android:backgroundTint="@null"
+                    android:text="@string/foul_home_plus_button"
+                    android:textColor="@color/white"
+                    android:textSize="8sp" />
+
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnPeriodMinus"
+                style="@null"
+                android:gravity="center"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:layout_margin="1dp"
+                android:paddingHorizontal="7dp"
+                android:background="@drawable/bg_round_button_dark"
+                android:backgroundTint="@null"
+                android:text="@string/period_minus_button"
+                android:textColor="@color/white"
+                android:textSize="8sp"
+                android:paddingVertical="3dp" />
+
+            <Button
+                android:id="@+id/btnPeriodPlus"
+                style="@null"
+                android:gravity="center"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:layout_margin="1dp"
+                android:paddingHorizontal="7dp"
+                android:background="@drawable/bg_round_button_dark"
+                android:backgroundTint="@null"
+                android:text="@string/period_plus_button"
+                android:textColor="@color/white"
+                android:textSize="8sp"
+                android:paddingVertical="3dp" />
+
+            <!-- v0.8.16：客隊犯規改直排（+ 在上、− 在下），紫底白字 -->
+            <!-- v0.9.8：跟主隊同步改回橫排（+ 左、− 右） -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnFoulAwayPlus"
+                    style="@null"
+                    android:gravity="center"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:layout_margin="1dp"
+                    android:paddingHorizontal="7dp"
+                    android:paddingVertical="3dp"
+                    android:background="@drawable/bg_foul_away_button"
+                    android:backgroundTint="@null"
+                    android:text="@string/foul_away_plus_button"
+                    android:textColor="@color/white"
+                    android:textSize="8sp" />
+
+                <Button
+                    android:id="@+id/btnFoulAwayMinus"
+                    style="@null"
+                    android:gravity="center"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:layout_margin="1dp"
+                    android:paddingHorizontal="7dp"
+                    android:paddingVertical="3dp"
+                    android:background="@drawable/bg_foul_away_button"
+                    android:backgroundTint="@null"
+                    android:text="@string/foul_away_minus_button"
+                    android:textColor="@color/white"
+                    android:textSize="8sp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 收合箭頭：點一下往上收起整個操作列（尺寸維持不變，不隨面板縮小） -->
+        <!-- v0.8.13：單一符號的 Button 在這支裝置上文字會完全不可見（已用曝光按鈕驗證過），
+             改用 TextView 取代，跟旁邊的文字顯示元件一樣可靠 -->
+        <TextView
+            android:id="@+id/btnCollapseTop"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:layout_width="56dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center_horizontal"
+            android:background="@drawable/bg_round_button_dark"
+            android:alpha="0.6"
+            android:text="▲"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:contentDescription="@string/collapse_top_panel_desc" />
+
+    </LinearLayout>
+
+    <!-- 頂部收合後的展開把手：固定在畫面最上緣（尺寸維持不變） -->
+    <TextView
+        android:id="@+id/btnHandleTop"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:layout_width="56dp"
+        android:layout_height="24dp"
+        android:background="@drawable/bg_round_button_dark"
+        android:alpha="0.6"
+        android:text="▼"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        android:visibility="invisible"
+        android:contentDescription="@string/expand_top_panel_desc"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="4dp" />
+
+    <!-- v0.10.1：實際/設定碼率顯示（直播中才顯示，見 LiveActivity.updateBitrateStatusDisplay）——
+         達標（≥設定九成）白字、低於九成黃字、低於七成紅字。
+         v0.10.5：Boss 定案移到「直播中」右側同一排（原本在正下方） -->
+    <TextView
+        android:id="@+id/tvBitrateStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textStyle="bold"
+        android:textSize="9sp"
+        android:alpha="0.6"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        android:background="@drawable/bg_round_button_dark"
+        android:backgroundTint="@null"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="@id/tvLiveIndicator"
+        app:layout_constraintBottom_toBottomOf="@id/tvLiveIndicator"
+        app:layout_constraintStart_toEndOf="@id/tvLiveIndicator"
+        android:layout_marginStart="6dp"
+        tools:text="↑3.2 / 4.0 Mbps" />
+
+    <!-- v0.8.24：碼率因網路壅塞被自動調降時顯示的小提示，預設隱藏；只有「直播中碼率自動調整」
+         開啟且偵測到壅塞才顯示（見 LiveActivity.onNewBitrate）。
+         v0.9.6：「直播中」移到左上角後，此提示改掛在它正下方。
+         v0.10.1：改掛在碼率顯示下方；v0.10.5：碼率顯示移到「直播中」右側後，改回掛「直播中」正下方 -->
+    <TextView
+        android:id="@+id/tvBitrateCongestion"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚠ 網路壅塞，碼率調降中"
+        android:textColor="@color/live_red"
+        android:textStyle="bold"
+        android:textSize="12sp"
+        android:alpha="0.7"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        android:background="@drawable/bg_round_button_dark"
+        android:backgroundTint="@null"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/tvLiveIndicator"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="4dp" />
+
+    <!-- 直播中紅點提示（預設隱藏，開播後顯示）。v0.8.19：移到畫面左下角並淡化。
+         v0.9.6：Boss 定案移到左上角（左下角讓給移下來的主隊計分按鈕群） -->
+    <TextView
+        android:id="@+id/tvLiveIndicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="● 直播中"
+        android:textColor="@color/live_red"
+        android:textStyle="bold"
+        android:textSize="9sp"
+        android:alpha="0.6"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        android:background="@drawable/bg_round_button_dark"
+        android:backgroundTint="@null"
+        android:visibility="invisible"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="8dp" />
+
+    <!-- v0.5.0：音量鍵變焦倍率顯示。v0.9.6：移到右上角、版本號正下方。
+         v0.10.1：Boss 定案右上角改成一橫排「溫度→變焦→版本號」，此元件改到版本號左側 -->
+    <!-- v0.10.2：Boss 要求變焦倍率不用底圖，改純文字（內距保留維持排版間距） -->
+    <TextView
+        android:id="@+id/tvZoomValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="1.0x"
+        android:textColor="@color/text_secondary"
+        android:alpha="0.6"
+        android:textStyle="bold"
+        android:textSize="9sp"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/tvAppVersion"
+        android:layout_marginEnd="6dp"
+        android:layout_marginTop="4dp" />
+
+    <!-- v0.10.1：電池溫度＋健康狀態（放變焦倍率左側）——38 度以下藍字「健康」、38~42（含42）
+         黃字「請降溫」、超過 42 紅字「效能已下降」，顏色與文字由 LiveActivity 依電池廣播即時更新；
+         轉紅字那一刻另跳一次 Toast（見 LiveActivity.updateTemperatureDisplay） -->
+    <TextView
+        android:id="@+id/tvTempStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:alpha="0.6"
+        android:textStyle="bold"
+        android:textSize="9sp"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        android:background="@drawable/bg_round_button_dark"
+        android:backgroundTint="@null"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/tvZoomValue"
+        android:layout_marginEnd="6dp"
+        android:layout_marginTop="4dp"
+        tools:text="36.8°C 健康" />
+
+    <!-- ===================== 隊名點擊區（v0.8.4：刪除重複顯示分數/節數的真實 UI 面板，
+         改為兩個透明點擊區，對齊燒入影片計分板的隊名位置，點擊仍可跳出改名對話框） ===================== -->
+    <!-- 分數/節數/犯規已經燒入影片計分板常駐顯示（見 LiveActivity.buildScoreboardOverlayBitmap），
+         不再需要真實 UI 面板重複顯示一次。這兩區完全透明看不到，只保留點擊功能，
+         位置抓在燒入計分板「隊名」大約所在的左／右半邊，讓觀眾看到的畫面乾淨、不會有兩層計分板。 -->
+    <!-- v0.8.6 修正：原本 tvTeamHomeName 用 constraintStart_toStartOf="parent"，
+         實際落點在螢幕最左邊（0%~46%），根本沒對齊燒入計分板實際所在的中央區域（約 27%~73%），
+         導致以它為錨點的計分按鈕群也跟著跑到左側收合欄那邊去。改用三條參考線精準卡在
+         燒入計分板的實際範圍內（左緣 27%、置中 50%、右緣 73%，對應 OVERLAY_WIDTH_RATIO=0.46 置中）。 -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guidelineTeamNameLeft"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.27" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guidelineTeamNameCenter"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.5" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guidelineTeamNameRight"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.73" />
+
+    <TextView
+        android:id="@+id/tvTeamHomeName"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@android:color/transparent"
+        android:textColor="@android:color/transparent"
+        android:text="@string/team_home_default"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="@id/guidelineTeamNameLeft"
+        app:layout_constraintEnd_toStartOf="@id/guidelineTeamNameCenter"
+        app:layout_constraintHeight_percent="0.13" />
+
+    <TextView
+        android:id="@+id/tvTeamAwayName"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@android:color/transparent"
+        android:textColor="@android:color/transparent"
+        android:text="@string/team_away_default"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@id/guidelineTeamNameCenter"
+        app:layout_constraintEnd_toEndOf="@id/guidelineTeamNameRight"
+        app:layout_constraintHeight_percent="0.13" />
+
+    <!-- ===================== 主隊計分 +/- 固定列（v0.8.0 新增：獨立於左側欄，永遠顯示、不參與任何面板收合） ===================== -->
+    <!-- v0.8.5：Boss 指定排列方式為單排橫向，貼在底部計分板左側、跟計分板同一垂直高度，
+         由外而內＝-1、+3、+2、+1（離計分板越近的按鈕使用頻率越高，+1 貼著計分板最好按）。
+         不再跟 leftPanelContainer 搶垂直空間（改回各自獨立置中），版面問題一次解決。 -->
+    <!-- v0.8.10：改成從螢幕左緣往內排（不再跟著 tvTeamHomeName 位置浮動），
+         避免螢幕較窄時最外側的 -1 按鈕被截到畫面外；整體下移約 1/3 按鈕高度、加上透明度。 -->
+    <!-- v0.8.15：Boss 要求先移到畫面最上方試看看 -->
+    <!-- v0.9.6：Boss 看過配置提案圖後定案——移回畫面下方，貼齊左下角、跟燒入計分板（27%~73%）
+         同一排；隊名上限同步改 4 字，計分板寬度固定，按鈕群跟計分板不會互相擠壓 -->
+    <!-- v0.10.3：Boss 定案改兩排——−1 上移到加分排正上方（減分是危險操作，跟加分按鈕分開
+         降低誤觸），+3/+2/+1 整排左移貼齊螢幕左緣；左緣展開把手同步上移閃開（見 btnHandleLeft） -->
+    <LinearLayout
+        android:id="@+id/leftScoreButtonsContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="start"
+        android:alpha="0.6"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginBottom="10dp"
+        android:layout_marginStart="4dp">
+
+        <!-- v0.16.0：−1 那排改橫向——−1（維持貼齊左緣不動）＋彈性佔位＋「休息畫面」鈕
+             （與右下⭐標記鈕鏡像對稱：同排高、同 88dp 寬、同底圖樣式，見計畫書功能三按鈕 UI） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <Button
+                android:id="@+id/btnHomeMinus1"
+                style="@null"
+                android:gravity="center"
+                android:layout_width="42dp"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingVertical="4dp"
+                android:layout_margin="2dp"
+                android:background="@drawable/bg_score_button_minus"
+                android:backgroundTint="@null"
+                android:text="-1"
+                android:textColor="@color/white"
+                android:textSize="10sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/btnBreakScreen"
+                style="@null"
+                android:gravity="center"
+                android:layout_width="88dp"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingVertical="4dp"
+                android:layout_margin="2dp"
+                android:background="@drawable/bg_round_button_dark"
+                android:backgroundTint="@null"
+                android:text="@string/break_screen_button"
+                android:textColor="@color/white"
+                android:maxLines="1"
+                android:textSize="10sp"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="6sp"
+                app:autoSizeMaxTextSize="10sp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnHomePlus3"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_score_button_plus"
+            android:backgroundTint="@null"
+            android:text="+3"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
+        <Button
+            android:id="@+id/btnHomePlus2"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_score_button_plus"
+            android:backgroundTint="@null"
+            android:text="+2"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
+        <Button
+            android:id="@+id/btnHomePlus1"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_score_button_plus"
+            android:backgroundTint="@null"
+            android:text="+1"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- ===================== 左側欄（往左收）：開播/收播、分享 ===================== -->
+    <LinearLayout
+        android:id="@+id/leftPanelContainer"
+        android:clickable="true"
+        android:focusable="false"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="64dp"
+        android:layout_marginBottom="88dp"
+        android:layout_marginStart="8dp">
+
+        <LinearLayout
+            android:id="@+id/leftContentColumn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_scoreboard_panel"
+            android:padding="7dp">
+
+            <!-- 開播/收播為主要操作鈕，縮小後高度仍維持不低於 40dp 以利點按 -->
+            <Button
+                android:id="@+id/btnLiveToggle"
+                android:layout_width="80dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_round_button_start"
+                android:backgroundTint="@null"
+                android:text="@string/live_start_button"
+                android:textColor="@color/white"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnShare"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:paddingVertical="6dp"
+                android:background="@drawable/bg_round_button_dark"
+                android:backgroundTint="@null"
+                android:text="@string/share_button"
+                android:textColor="@color/white"
+                android:textSize="8sp" />
+
+            <Button
+                android:id="@+id/btnResetScores"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:paddingVertical="6dp"
+                android:background="@drawable/bg_round_button_dark"
+                android:backgroundTint="@null"
+                android:text="@string/reset_scores_button"
+                android:textColor="@color/white"
+                android:textSize="8sp" />
+
+            <!-- v0.4.5：關閉軟體（直播中鎖定，做法與右側欄設定按鈕一致，見 LiveActivity.setLiveUiState） -->
+            <Button
+                android:id="@+id/btnCloseApp"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:paddingVertical="6dp"
+                android:background="@drawable/bg_round_button_dark"
+                android:backgroundTint="@null"
+                android:text="@string/close_app_button"
+                android:textColor="@color/white"
+                android:textSize="8sp" />
+
+        </LinearLayout>
+
+        <!-- 收合箭頭：點一下往左收起整個左側欄（尺寸維持不變，不隨面板縮小） -->
+        <TextView
+            android:id="@+id/btnCollapseLeft"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:layout_width="24dp"
+            android:layout_height="56dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_round_button_dark"
+            android:alpha="0.6"
+            android:text="◀"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:contentDescription="@string/collapse_left_panel_desc" />
+
+    </LinearLayout>
+
+    <!-- 左側收合後的展開把手：固定在畫面最左緣（尺寸維持不變）。
+         v0.10.3：垂直位置由置中上移到上 1/4，閃開上移後的主隊 −1 按鈕 -->
+    <TextView
+        android:id="@+id/btnHandleLeft"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:layout_width="24dp"
+        android:layout_height="56dp"
+        android:background="@drawable/bg_round_button_dark"
+        android:alpha="0.6"
+        android:text="▶"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        android:visibility="invisible"
+        android:contentDescription="@string/expand_left_panel_desc"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintVertical_bias="0.25"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- ===================== 客隊計分 +/- 固定列（v0.8.0 新增：獨立於右側欄，永遠顯示、不參與任何面板收合） ===================== -->
+    <!-- v0.8.5：跟左側對稱，單排橫向貼在計分板右側，由內而外＝+1、+2、+3、-1 -->
+    <!-- v0.8.10：跟左側同步改成從螢幕右緣往內排，避免最外側的 -1 被截到畫面外 -->
+    <!-- v0.8.15：跟左側同步先移到畫面最上方試看看 -->
+    <!-- v0.9.6：跟左側同步定案移回畫面下方，貼齊右下角、跟燒入計分板同一排 -->
+    <!-- v0.10.3：跟左側鏡像改兩排——−1 上移到加分排正上方（貼齊右緣），+1/+2/+3 整排右移
+         貼齊螢幕右緣；右緣展開把手同步上移閃開（見 btnHandleRight） -->
+    <LinearLayout
+        android:id="@+id/rightScoreButtonsContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="end"
+        android:alpha="0.6"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="10dp"
+        android:layout_marginEnd="4dp">
+
+        <!-- v0.15.3：−1 那排改橫向雙元素——⭐標記（Boss 指定從左側欄移來，放 +1 正上方＝
+             本排最內側）＋彈性佔位＋−1（維持貼齊右緣不動） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <Button
+                android:id="@+id/btnHighlightMark"
+                style="@null"
+                android:gravity="center"
+                android:layout_width="88dp"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingVertical="4dp"
+                android:layout_margin="2dp"
+                android:background="@drawable/bg_round_button_dark"
+                android:backgroundTint="@null"
+                android:text="@string/highlight_mark_button"
+                android:textColor="@color/white"
+                android:textSize="10sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/btnAwayMinus1"
+                style="@null"
+                android:gravity="center"
+                android:layout_width="42dp"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingVertical="4dp"
+                android:layout_margin="2dp"
+                android:background="@drawable/bg_score_button_minus"
+                android:backgroundTint="@null"
+                android:text="-1"
+                android:textColor="@color/white"
+                android:textSize="10sp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnAwayPlus1"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_score_button_plus"
+            android:backgroundTint="@null"
+            android:text="+1"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
+        <Button
+            android:id="@+id/btnAwayPlus2"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_score_button_plus"
+            android:backgroundTint="@null"
+            android:text="+2"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
+        <Button
+            android:id="@+id/btnAwayPlus3"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_score_button_plus"
+            android:backgroundTint="@null"
+            android:text="+3"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- ===================== 右側欄（往右收）：曝光、定焦、設定 ===================== -->
+    <LinearLayout
+        android:id="@+id/rightPanelContainer"
+        android:clickable="true"
+        android:focusable="false"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="64dp"
+        android:layout_marginBottom="88dp"
+        android:layout_marginEnd="8dp">
+
+        <!-- 收合箭頭：點一下往右收起整個右側欄（尺寸維持不變，不隨面板縮小） -->
+        <TextView
+            android:id="@+id/btnCollapseRight"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:layout_width="24dp"
+            android:layout_height="56dp"
+            android:layout_marginEnd="4dp"
+            android:background="@drawable/bg_round_button_dark"
+            android:alpha="0.6"
+            android:text="▶"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:contentDescription="@string/collapse_right_panel_desc" />
+
+        <LinearLayout
+            android:id="@+id/rightContentColumn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_scoreboard_panel"
+            android:padding="7dp">
+
+            <TextView
+                android:id="@+id/tvExposureLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/exposure_label"
+                android:textColor="@color/text_secondary"
+                android:textSize="8sp" />
+
+            <!-- v0.8.12：改用 TextView 排查——Button 元件在此裝置上文字完全不可見（底色能顯示），
+                 換成跟旁邊 tvExposureValue 一樣能正常顯示文字的 TextView 元件測試 -->
+            <TextView
+                android:id="@+id/btnExposureUp"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_margin="3dp"
+                android:background="@drawable/bg_debug_test_blue"
+                android:text="+"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/tvExposureValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0"
+                android:textColor="@color/white"
+                android:textSize="9sp" />
+
+            <TextView
+                android:id="@+id/btnExposureDown"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_margin="3dp"
+                android:background="@drawable/bg_debug_test_blue"
+                android:text="−"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/btnFocusLock"
+                style="@null"
+                android:gravity="center"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:paddingHorizontal="7dp"
+                android:paddingVertical="4dp"
+                android:background="@drawable/bg_round_button_dark"
+                android:backgroundTint="@null"
+                android:text="@string/focus_lock_button"
+                android:textColor="@color/white"
+                android:textSize="8sp" />
+
+            <ImageButton
+                android:id="@+id/btnSettingsEntry"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_round_button_dark"
+                android:backgroundTint="@null"
+                android:src="@android:drawable/ic_menu_manage"
+                android:contentDescription="@string/settings_entry_button"
+                app:tint="@color/white" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 除錯用：畫面右上角常駐顯示目前 APP 版本號，方便安裝後立刻確認是不是最新版，不用進系統設定查。
+         v0.10.1：右上角改一橫排（溫度→變焦→版本號），版本號垂直置中對齊變焦膠囊 -->
+    <TextView
+        android:id="@+id/tvAppVersion"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text_secondary"
+        android:textSize="9sp"
+        android:alpha="0.75"
+        app:layout_constraintTop_toTopOf="@id/tvZoomValue"
+        app:layout_constraintBottom_toBottomOf="@id/tvZoomValue"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginEnd="4dp" />
+
+    <!-- 右側收合後的展開把手：固定在畫面最右緣（尺寸維持不變）。
+         v0.10.3：跟左側同步上移到上 1/4，閃開上移後的客隊 −1 按鈕 -->
+    <TextView
+        android:id="@+id/btnHandleRight"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:layout_width="24dp"
+        android:layout_height="56dp"
+        android:background="@drawable/bg_round_button_dark"
+        android:alpha="0.6"
+        android:text="◀"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        android:visibility="invisible"
+        android:contentDescription="@string/expand_right_panel_desc"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintVertical_bias="0.25"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

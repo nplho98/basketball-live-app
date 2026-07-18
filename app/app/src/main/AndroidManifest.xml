@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 直播相關權限：此階段僅宣告，尚未實作對應功能 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- v0.12.0：直播前景服務——切背景/久放不被系統殺進程斷播，見 LiveForegroundService -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="true" />
+
+    <!-- v0.15.0：精彩清單「分享LINE」——Android 11+ 套件可見性，宣告後才能以指定包名直開 LINE
+         （見 LiveActivity.shareHighlightsToLine） -->
+    <queries>
+        <package android:name="jp.naver.line.android" />
+    </queries>
+
+    <application
+        android:name=".BasketballLiveApplication"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.BasketballLiveYT">
+
+        <!-- 登入頁：APP 進入點 -->
+        <activity
+            android:name=".LoginActivity"
+            android:exported="true"
+            android:theme="@style/Theme.BasketballLiveYT">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 直播主畫面：橫屏鎖定 -->
+        <activity
+            android:name=".LiveActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- 設定頁：橫屏鎖定，跟直播主畫面一致，避免從橫屏切進設定頁時畫面轉向 -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- v0.12.0：直播前景服務，掛常駐通知＋宣告 camera/microphone 前景服務類型，
+             見 LiveForegroundService／LiveActivity.onConnectionSuccess -->
+        <service
+            android:name=".LiveForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="camera|microphone" />
+
+    </application>
+
+</manifest>

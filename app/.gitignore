@@ -1,0 +1,24 @@
+# 建置產出
+build/
+*/build/
+.gradle/
+.kotlin/
+
+# 本機 SDK 路徑設定（含機器專屬路徑）
+local.properties
+
+# 簽章金鑰與打包產出（絕不進版控）
+*.keystore
+*.jks
+*.apk
+*.aab
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.DS_Store
+
+# 其他本地雜檔
+captures/
+.externalNativeBuild/
+.cxx/

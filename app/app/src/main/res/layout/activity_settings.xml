@@ -1,0 +1,466 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_title"
+            android:textColor="@color/white"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="20dp" />
+
+        <!-- YouTube 帳號：顯示目前登入狀態，並提供登出／切換帳號入口 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_account_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvAccountStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            tools:text="目前登入：nplho98@gmail.com" />
+
+        <Button
+            android:id="@+id/btnSwitchAccount"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="20dp"
+            android:background="@drawable/bg_round_button_stop"
+            android:backgroundTint="@null"
+            android:text="@string/settings_switch_account_button"
+            android:textColor="@color/white"
+            android:textSize="14sp" />
+
+        <!-- v0.16.0：功能一——直播標題雙模板。兩個模板各自可編輯保存＋單選鈕選用；
+             切換選中模板時把該模板文字帶入下方「本次直播標題」欄供微調（微調不回寫模板），
+             開播實際採用「本次直播標題」欄（etStreamTitle，沿用既有存取入口，見 SettingsActivity）。 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_title_template_section"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <RadioGroup
+            android:id="@+id/radioGroupTitleTemplate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="4dp">
+
+            <!-- 模板一 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <RadioButton
+                    android:id="@+id/radioTitleTemplate1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/settings_title_template_1_label"
+                    android:textColor="@color/white"
+                    android:textSize="13sp" />
+
+                <EditText
+                    android:id="@+id/etTitleTemplate1"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:hint="@string/settings_title_template_1_hint"
+                    android:textColorHint="@color/text_secondary"
+                    android:textColor="@color/white"
+                    android:inputType="text" />
+
+            </LinearLayout>
+
+            <!-- 模板二 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="6dp">
+
+                <RadioButton
+                    android:id="@+id/radioTitleTemplate2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/settings_title_template_2_label"
+                    android:textColor="@color/white"
+                    android:textSize="13sp" />
+
+                <EditText
+                    android:id="@+id/etTitleTemplate2"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:hint="@string/settings_title_template_2_hint"
+                    android:textColorHint="@color/text_secondary"
+                    android:textColor="@color/white"
+                    android:inputType="text" />
+
+            </LinearLayout>
+
+        </RadioGroup>
+
+        <!-- 本次直播標題：切模板帶入此欄，可微調；開播實際用此欄文字 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_title_final_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:layout_marginTop="12dp" />
+
+        <EditText
+            android:id="@+id/etStreamTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/settings_stream_title_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="text"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 賽事名稱：燒入計分板左側區塊，留空則該區塊不顯示 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_event_name_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <!-- v0.9.17：拆成兩個輸入欄（燒入計分板的第一行／第二行），hint 標註上限；
+             取代 v0.9.16 的單欄 6 字自動換行（燒入端改回依欄位內容分行，見
+             LiveActivity.drawEventNameAndPeriodColumn）。v0.9.18：上限 8→10；v0.9.19：10→12 字 -->
+        <EditText
+            android:id="@+id/etEventNameLine1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/settings_event_name_line1_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="text"
+            android:maxLength="12"
+            android:layout_marginTop="4dp" />
+
+        <EditText
+            android:id="@+id/etEventNameLine2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/settings_event_name_line2_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="text"
+            android:maxLength="12"
+            android:layout_marginTop="2dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 串流金鑰（開發測試入口，正式版改為帳號登入自動取得） -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_stream_key_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/etStreamKey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/settings_stream_key_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="textVisiblePassword"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_stream_key_note"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 隱私設定 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_privacy_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <Spinner
+            android:id="@+id/spinnerPrivacy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/privacy_options"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 一鍵測速：實測上傳速度，自動建議解析度/fps/碼率（套用後仍可手動調整任一欄位） -->
+        <Button
+            android:id="@+id/btnDetectNetwork"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_round_button_primary"
+            android:backgroundTint="@null"
+            android:text="@string/settings_detect_network_button"
+            android:textColor="@color/white"
+            android:textSize="14sp" />
+
+        <!-- 60 秒連續測速的即時速率曲線，按下按鈕才顯示 -->
+        <com.hopengzhe.basketballliveyt.NetworkSpeedChartView
+            android:id="@+id/chartNetworkSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_round_button_dark"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvDetectNetworkResult"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:layout_marginBottom="20dp"
+            tools:text="目前上傳速度：3.2 Mbps，已套用建議設定" />
+
+        <!-- v0.16.0：功能二——不延遲最低設定，一鍵套 720P/30fps/2300Kbps 到下方三欄
+             （純刷新 Spinner UI，與手動逐項調整等價，儲存設定後下次開播生效，見 SettingsActivity） -->
+        <Button
+            android:id="@+id/btnLowLatencyPreset"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/bg_round_button_primary"
+            android:backgroundTint="@null"
+            android:text="@string/settings_low_latency_button"
+            android:textColor="@color/white"
+            android:textSize="14sp" />
+
+        <!-- 解析度 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_resolution_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <Spinner
+            android:id="@+id/spinnerResolution"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/resolution_options"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- fps -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_fps_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <Spinner
+            android:id="@+id/spinnerFps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/fps_options"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 碼率 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_bitrate_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <Spinner
+            android:id="@+id/spinnerBitrate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/bitrate_options"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 直播中碼率自動調整開關：開＝網路壅塞時自動降碼率救流暢度；關＝全程固定用上面選的碼率 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/settings_bitrate_auto_adjust_label"
+                android:textColor="@color/white"
+                android:textSize="14sp" />
+
+            <Switch
+                android:id="@+id/switchBitrateAutoAdjust"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_bitrate_auto_adjust_note"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:layout_marginBottom="28dp" />
+
+        <!-- v0.10.0：同步錄影備份——開關關閉時解析度／存檔位置兩個 Spinner 反灰（見 SettingsActivity
+             updateRecordSectionEnabled），錄影生命週期＝直播 session，見 LiveActivity 類別頂端 KDoc -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_record_section_title"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/settings_record_enabled_label"
+                android:textColor="@color/white"
+                android:textSize="14sp" />
+
+            <Switch
+                android:id="@+id/switchRecordEnabled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="false" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_record_resolution_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <Spinner
+            android:id="@+id/spinnerRecordResolution"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/record_resolution_options"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_record_resolution_note"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="20dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_record_save_mode_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <Spinner
+            android:id="@+id/spinnerRecordSaveMode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/record_save_mode_options"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:id="@+id/tvRecordFolderName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp"
+            tools:text="目前資料夾：籃球直播錄影" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_record_save_mode_note"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="28dp" />
+
+        <!-- v0.13.0：功能 A 精彩時刻標記——標記回推秒數 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_highlight_rebound_seconds_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <Spinner
+            android:id="@+id/spinnerHighlightReboundSeconds"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/highlight_rebound_seconds_options"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="28dp" />
+
+        <Button
+            android:id="@+id/btnSaveSettings"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:background="@drawable/bg_round_button_primary"
+            android:backgroundTint="@null"
+            android:text="@string/settings_save_button"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+</ScrollView>

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>休息畫面四節計分表 — 10 款樣式提案</title>
+<style>
+  :root {
+    --navy-top: rgba(23, 56, 104, 0.84);
+    --navy-bottom: rgba(13, 33, 64, 0.84);
+    --navy-solid-top: #173868;
+    --navy-solid-bottom: #0D2140;
+    --gold-border: rgba(255, 214, 140, 0.22);
+    --gold-line-light: #F3CF7F;
+    --gold-line-dark: #E0A83F;
+    --gold-divider: rgba(243, 207, 127, 0.35);
+    --warm-white: #F6EFE0;
+    --box-gold-light: #F7DFA0;
+    --box-gold-dark: #CF9F45;
+    --dim-white: rgba(246, 239, 224, 0.45);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a1a;
+    font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    color: var(--warm-white);
+    padding: 24px;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .note { color: #999; font-size: 13px; margin-bottom: 24px; }
+  .sample { margin-bottom: 36px; }
+  .sample h2 {
+    font-size: 15px; color: var(--gold-line-light);
+    margin-bottom: 8px; font-weight: 700;
+  }
+  .sample h2 span { color: #aaa; font-weight: 400; font-size: 13px; margin-left: 8px; }
+  /* 16:9 黑畫面模擬框（直播輸出比例） */
+  .frame {
+    width: 800px; height: 450px; background: #000;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #333; position: relative; overflow: hidden;
+  }
+  .gold-text {
+    background: linear-gradient(180deg, var(--box-gold-light), var(--box-gold-dark));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .score-chip {
+    background: linear-gradient(135deg, var(--box-gold-light), var(--box-gold-dark));
+    color: #111; font-weight: 900; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .dim { color: var(--dim-white); }
+
+  /* ============ 樣式01：經典橫式面板 ============ */
+  .s01 .panel {
+    background: linear-gradient(180deg, var(--navy-top), var(--navy-bottom));
+    border: 2px solid var(--gold-border); border-radius: 16px;
+    padding: 26px 40px 30px; position: relative; min-width: 620px;
+  }
+  .s01 .accent {
+    position: absolute; top: 8px; left: 24px; right: 24px; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold-line-light) 25%, var(--gold-line-dark) 50%, var(--gold-line-light) 75%, transparent);
+  }
+  .s01 table { border-collapse: collapse; width: 100%; }
+  .s01 th, .s01 td { text-align: center; padding: 10px 18px; font-size: 24px; }
+  .s01 thead th { color: var(--gold-line-light); font-size: 18px; border-bottom: 1px solid var(--gold-divider); }
+  .s01 .team { font-size: 24px; font-weight: 700; text-align: left; }
+  .s01 .total .score-chip { width: 76px; height: 46px; font-size: 30px; }
+
+  /* ============ 樣式02：大總分置頂式 ============ */
+  .s02 .panel {
+    background: linear-gradient(180deg, var(--navy-top), var(--navy-bottom));
+    border: 2px solid var(--gold-border); border-radius: 16px;
+    padding: 24px 44px; text-align: center; min-width: 600px; position: relative;
+  }
+  .s02 .accent { position: absolute; top: 8px; left: 24px; right: 24px; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold-line-light) 25%, var(--gold-line-dark) 50%, var(--gold-line-light) 75%, transparent); }
+  .s02 .bigrow { display: flex; align-items: center; justify-content: center; gap: 28px; margin-bottom: 18px; }
+  .s02 .bigrow .name { font-size: 28px; font-weight: 700; }
+  .s02 .bigrow .score-chip { width: 96px; height: 64px; font-size: 44px; }
+  .s02 .bigrow .vs { color: var(--gold-line-light); font-size: 22px; font-weight: 700; }
+  .s02 table { border-collapse: collapse; margin: 0 auto; }
+  .s02 th, .s02 td { padding: 6px 22px; font-size: 20px; text-align: center; }
+  .s02 thead th { color: var(--gold-line-light); font-size: 16px; border-bottom: 1px solid var(--gold-divider); }
+  .s02 .team { text-align: right; font-weight: 700; }
+
+  /* ============ 樣式03：直式節次表 ============ */
+  .s03 .panel {
+    background: linear-gradient(180deg, var(--navy-top), var(--navy-bottom));
+    border: 2px solid var(--gold-border); border-radius: 16px;
+    padding: 22px 48px; position: relative;
+  }
+  .s03 .accent { position: absolute; top: 8px; left: 24px; right: 24px; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold-line-light) 25%, var(--gold-line-dark) 50%, var(--gold-line-light) 75%, transparent); }
+  .s03 table { border-collapse: collapse; }
+  .s03 th, .s03 td { padding: 8px 26px; font-size: 22px; text-align: center; }
+  .s03 thead th { font-size: 22px; font-weight: 700; border-bottom: 2px solid var(--gold-divider); padding-bottom: 12px; }
+  .s03 .qlabel { color: var(--gold-line-light); font-size: 17px; }
+  .s03 tfoot td { border-top: 2px solid var(--gold-divider); padding-top: 14px; }
+  .s03 tfoot .score-chip { width: 70px; height: 44px; font-size: 28px; }
+  .s03 tfoot .qlabel { font-weight: 700; }
+
+  /* ============ 樣式04：每格金方塊式 ============ */
+  .s04 .panel {
+    background: linear-gradient(180deg, var(--navy-top), var(--navy-bottom));
+    border: 2px solid var(--gold-border); border-radius: 16px;
+    padding: 26px 36px; position: relative;
+  }
+  .s04 .accent { position: absolute; top: 8px; left: 24px; right: 24px; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold-line-light) 25%, var(--gold-line-dark) 50%, var(--gold-line-light) 75%, transparent); }
+  .s04 .row { display: flex; align-items: center; gap: 14px; margin: 10px 0; }
+  .s04 .head { margin-bottom: 4px; }
+  .s04 .name { width: 120px; font-size: 24px; font-weight: 700; }
+  .s04 .qhead { width: 64px; text-align: center; color: var(--gold-line-light); font-size: 17px; }
+  .s04 .qhead.total { width: 84px; font-weight: 700; }
+  .s04 .cell { width: 64px; height: 46px; font-size: 26px; }
+  .s04 .cell.empty { background: rgba(255,255,255,0.08); color: var(--dim-white); }
+  .s04 .cell.total { width: 84px; height: 54px; font-size: 32px; box-shadow: 0 0 12px rgba(243,207,127,0.35); }
+
+  /* ============ 樣式05：轉播底欄式（lower third） ============ */
+  .s05 .frame { align-items: flex-end; }
+  .s05 .panel {
+    margin-bottom: 36px;
+    background: linear-gradient(180deg, var(--navy-top), var(--navy-bottom));
+    border: 2px solid var(--gold-border); border-radius: 12px;
+    padding: 14px 30px; display: flex; align-items: center; gap: 26px; position: relative;
+  }
+  .s05 .accent { position: absolute; top: 5px; left: 18px; right: 18px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold-line-light) 25%, var(--gold-line-dark) 50%, var(--gold-line-light) 75%, transparent); }
+  .s05 .teamcol { text-align: center; }
+  .s05 .teamcol .name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .s05 .teamcol .score-chip { width: 64px; height: 44px; font-size: 28px; }
+  .s05 .qgrid { display: flex; gap: 18px; border-left: 1px solid var(--gold-divider); border-right: 1px solid var(--gold-divider); padding: 0 22px; }
+  .s05 .qcol { text-align: center; }
+  .s05 .qcol .q { color: var(--gold-line-light); font-size: 14px; margin-bottom: 4px; }
+  .s05 .qcol .pair { font-size: 19px; font-weight: 700; line-height: 1.35; }
+
+  /* ============ 樣式06：中央對決式 ============ */
+  .s06 .panel { text-align: center; }
+  .s06 .duel { display: flex; align-items: center; justify-content: center; gap: 34px; }
+  .s06 .side { text-align: center; }
+  .s06 .side .name { font-size: 30px; font-weight: 700; margin-bottom: 10px; }
+  .s06 .side .score-chip { width: 110px; height: 74px; font-size: 52px; }
+  .s06 .mid { color: var(--gold-line-light); font-size: 26px; font-weight: 900; }
+  .s06 .qtable { margin: 26px auto 0; border-collapse: collapse; }
+  .s06 .qtable td, .s06 .qtable th { padding: 6px 20px; font-size: 20px; }
+  .s06 .qtable thead th { color: var(--gold-line-light); font-size: 15px; border-bottom: 1px solid var(--gold-divider); }
+  .s06 .qtable .team { font-weight: 700; text-align: right; }
+  .s06 .panel {
+    background: linear-gradient(180deg, var(--navy-top), var(--navy-bottom));
+    border: 2px solid var(--gold-border); border-radius: 18px;
+    padding: 28px 52px; position: relative;
+  }
+  .s06 .accent { position: absolute; top: 9px; left: 28px; right: 28px; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold-line-light) 25%, var(--gold-line-dark) 50%, var(--gold-line-light) 75%, transparent); }
+
+  /* ============ 樣式07：金框極簡線條式 ============ */
+  .s07 .panel { padding: 10px; }
+  .s07 table { border-collapse: collapse; }
+  .s07 th, .s07 td { padding: 14px 30px; font-size: 26px; text-align: center; border: 1px solid var(--gold-divider); }
+  .s07 thead th { color: var(--gold-line-light); font-size: 19px; background: rgba(23,56,104,0.5); }
+  .s07 .team { font-weight: 700; background: rgba(23,56,104,0.5); }
+  .s07 .totalcell { font-weight: 900; font-size: 32px; }
+  .s07 .totalhead { font-weight: 700; }
+
+  /* ============ 樣式08：節次卡片式 ============ */
+  .s08 .wrap { text-align: center; }
+  .s08 .names { display: flex; justify-content: center; gap: 18px; margin-bottom: 18px; font-size: 26px; font-weight: 700; }
+  .s08 .names .vs { color: var(--gold-line-light); }
+  .s08 .cards { display: flex; gap: 16px; justify-content: center; align-items: stretch; }
+  .s08 .card {
+    background: linear-gradient(180deg, var(--navy-top), var(--navy-bottom));
+    border: 2px solid var(--gold-border); border-radius: 14px;
+    padding: 14px 20px; text-align: center; position: relative; min-width: 104px;
+  }
+  .s08 .card .accent { position: absolute; top: 6px; left: 14px; right: 14px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold-line-light) 30%, var(--gold-line-dark) 50%, var(--gold-line-light) 70%, transparent); }
+  .s08 .card .q { color: var(--gold-line-light); font-size: 16px; margin: 6px 0 8px; }
+  .s08 .card .pair { font-size: 26px; font-weight: 700; line-height: 1.4; }
+  .s08 .card.total-card { border-color: rgba(255,214,140,0.5); box-shadow: 0 0 16px rgba(243,207,127,0.25); }
+  .s08 .card.total-card .pair { font-size: 30px; }
+  .s08 .card.total-card .pair .gold-text { font-weight: 900; }
+
+  /* ============ 樣式09：計分板同款完整面板（含賽事名稱欄） ============ */
+  .s09 .panel {
+    background: linear-gradient(180deg, var(--navy-top), var(--navy-bottom));
+    border: 2px solid var(--gold-border); border-radius: 16px;
+    padding: 22px 34px; position: relative; display: flex; align-items: center; gap: 30px;
+  }
+  .s09 .accent { position: absolute; top: 8px; left: 24px; right: 24px; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold-line-light) 25%, var(--gold-line-dark) 50%, var(--gold-line-light) 75%, transparent); }
+  .s09 .eventcol { text-align: center; font-size: 24px; font-weight: 700; line-height: 1.5; padding-right: 30px; border-right: 1.5px solid var(--gold-divider); }
+  .s09 table { border-collapse: collapse; }
+  .s09 th, .s09 td { padding: 8px 16px; font-size: 22px; text-align: center; }
+  .s09 thead th { color: var(--gold-line-light); font-size: 16px; border-bottom: 1px solid var(--gold-divider); }
+  .s09 .team { font-weight: 700; text-align: left; font-size: 22px; }
+  .s09 .total .score-chip { width: 70px; height: 44px; font-size: 28px; }
+
+  /* ============ 樣式10：對稱鏡像式（中央節次欄） ============ */
+  .s10 .panel {
+    background: linear-gradient(180deg, var(--navy-top), var(--navy-bottom));
+    border: 2px solid var(--gold-border); border-radius: 16px;
+    padding: 24px 50px; position: relative; text-align: center;
+  }
+  .s10 .accent { position: absolute; top: 8px; left: 24px; right: 24px; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold-line-light) 25%, var(--gold-line-dark) 50%, var(--gold-line-light) 75%, transparent); }
+  .s10 .headrow { display: flex; justify-content: center; gap: 90px; font-size: 26px; font-weight: 700; margin-bottom: 12px; }
+  .s10 table { border-collapse: collapse; margin: 0 auto; }
+  .s10 td { padding: 7px 34px; font-size: 24px; font-weight: 700; }
+  .s10 .qmid { color: var(--gold-line-light); font-size: 17px; font-weight: 400; padding: 7px 26px; border-left: 1px solid var(--gold-divider); border-right: 1px solid var(--gold-divider); }
+  .s10 tfoot td { border-top: 1.5px solid var(--gold-divider); padding-top: 13px; }
+  .s10 tfoot .score-chip { width: 72px; height: 46px; font-size: 30px; }
+  .s10 tfoot .qmid { font-weight: 700; }
+</style>
+</head>
+<body>
+<h1>休息畫面「四節計分表」10 款樣式提案</h1>
+<p class="note">黑框＝直播輸出畫面（16:9）。配色沿用計分板藏青金定案樣式。範例情境：第 3 節打完休息中，第 4 節尚未開始（顯示 –），總分＝前三節加總。</p>
+
+<!-- 樣式01 -->
+<div class="sample s01">
+  <h2>樣式01 經典橫式面板<span>橫列＝隊伍、直欄＝各節，總分用金底方塊收尾（最接近正式紀錄台）</span></h2>
+  <div class="frame"><div class="panel"><div class="accent"></div>
+    <table>
+      <thead><tr><th></th><th>第1節</th><th>第2節</th><th>第3節</th><th>第4節</th><th>總分</th></tr></thead>
+      <tbody>
+        <tr><td class="team">信義國中</td><td>18</td><td>22</td><td>15</td><td class="dim">–</td><td class="total"><span class="score-chip">55</span></td></tr>
+        <tr><td class="team">和平國中</td><td>12</td><td>15</td><td>14</td><td class="dim">–</td><td class="total"><span class="score-chip">41</span></td></tr>
+      </tbody>
+    </table>
+  </div></div>
+</div>
+
+<!-- 樣式02 -->
+<div class="sample s02">
+  <h2>樣式02 大總分置頂式<span>總分大方塊最醒目放上面，四節明細小表放下面</span></h2>
+  <div class="frame"><div class="panel"><div class="accent"></div>
+    <div class="bigrow">
+      <span class="name">信義國中</span><span class="score-chip">55</span>
+      <span class="vs">VS</span>
+      <span class="score-chip">41</span><span class="name">和平國中</span>
+    </div>
+    <table>
+      <thead><tr><th></th><th>第1節</th><th>第2節</th><th>第3節</th><th>第4節</th></tr></thead>
+      <tbody>
+        <tr><td class="team">信義國中</td><td>18</td><td>22</td><td>15</td><td class="dim">–</td></tr>
+        <tr><td class="team">和平國中</td><td>12</td><td>15</td><td>14</td><td class="dim">–</td></tr>
+      </tbody>
+    </table>
+  </div></div>
+</div>
+
+<!-- 樣式03 -->
+<div class="sample s03">
+  <h2>樣式03 直式節次表<span>直欄＝隊伍、橫列＝各節往下排，總分金方塊壓底</span></h2>
+  <div class="frame"><div class="panel"><div class="accent"></div>
+    <table>
+      <thead><tr><th class="qlabel"></th><th>信義國中</th><th>和平國中</th></tr></thead>
+      <tbody>
+        <tr><td class="qlabel">第1節</td><td>18</td><td>12</td></tr>
+        <tr><td class="qlabel">第2節</td><td>22</td><td>15</td></tr>
+        <tr><td class="qlabel">第3節</td><td>15</td><td>14</td></tr>
+        <tr><td class="qlabel">第4節</td><td class="dim">–</td><td class="dim">–</td></tr>
+      </tbody>
+      <tfoot>
+        <tr><td class="qlabel">總分</td><td><span class="score-chip">55</span></td><td><span class="score-chip">41</span></td></tr>
+      </tfoot>
+    </table>
+  </div></div>
+</div>
+
+<!-- 樣式04 -->
+<div class="sample s04">
+  <h2>樣式04 每格金方塊式<span>每一節比分都是金底黑字方塊（同計分板比分方塊語彙），未打的節灰格</span></h2>
+  <div class="frame"><div class="panel"><div class="accent"></div>
+    <div class="row head">
+      <span class="name"></span>
+      <span class="qhead">第1節</span><span class="qhead">第2節</span><span class="qhead">第3節</span><span class="qhead">第4節</span><span class="qhead total">總分</span>
+    </div>
+    <div class="row">
+      <span class="name">信義國中</span>
+      <span class="score-chip cell">18</span><span class="score-chip cell">22</span><span class="score-chip cell">15</span><span class="score-chip cell empty">–</span><span class="score-chip cell total">55</span>
+    </div>
+    <div class="row">
+      <span class="name">和平國中</span>
+      <span class="score-chip cell">12</span><span class="score-chip cell">15</span><span class="score-chip cell">14</span><span class="score-chip cell empty">–</span><span class="score-chip cell total">41</span>
+    </div>
+  </div></div>
+</div>
+
+<!-- 樣式05 -->
+<div class="sample s05">
+  <h2>樣式05 轉播底欄式<span>細長條靠畫面下緣（同現在計分板位置感），中段每節上下對排</span></h2>
+  <div class="frame"><div class="panel"><div class="accent"></div>
+    <div class="teamcol"><div class="name">信義國中</div><span class="score-chip">55</span></div>
+    <div class="qgrid">
+      <div class="qcol"><div class="q">第1節</div><div class="pair">18<br>12</div></div>
+      <div class="qcol"><div class="q">第2節</div><div class="pair">22<br>15</div></div>
+      <div class="qcol"><div class="q">第3節</div><div class="pair">15<br>14</div></div>
+      <div class="qcol"><div class="q">第4節</div><div class="pair dim">–<br>–</div></div>
+    </div>
+    <div class="teamcol"><div class="name">和平國中</div><span class="score-chip">41</span></div>
+  </div></div>
+</div>
+
+<!-- 樣式06 -->
+<div class="sample s06">
+  <h2>樣式06 中央對決式<span>兩隊總分超大方塊左右對決、VS 居中，四節明細縮小放下方</span></h2>
+  <div class="frame"><div class="panel"><div class="accent"></div>
+    <div class="duel">
+      <div class="side"><div class="name">信義國中</div><span class="score-chip">55</span></div>
+      <div class="mid">VS</div>
+      <div class="side"><div class="name">和平國中</div><span class="score-chip">41</span></div>
+    </div>
+    <table class="qtable">
+      <thead><tr><th></th><th>第1節</th><th>第2節</th><th>第3節</th><th>第4節</th></tr></thead>
+      <tbody>
+        <tr><td class="team">信義國中</td><td>18</td><td>22</td><td>15</td><td class="dim">–</td></tr>
+        <tr><td class="team">和平國中</td><td>12</td><td>15</td><td>14</td><td class="dim">–</td></tr>
+      </tbody>
+    </table>
+  </div></div>
+</div>
+
+<!-- 樣式07 -->
+<div class="sample s07">
+  <h2>樣式07 金框線條式<span>不用面板底，全靠金色格線＋半透明藏青儲存格，最輕量</span></h2>
+  <div class="frame"><div class="panel">
+    <table>
+      <thead><tr><th></th><th>第1節</th><th>第2節</th><th>第3節</th><th>第4節</th><th class="totalhead">總分</th></tr></thead>
+      <tbody>
+        <tr><td class="team">信義國中</td><td>18</td><td>22</td><td>15</td><td class="dim">–</td><td class="totalcell gold-text">55</td></tr>
+        <tr><td class="team">和平國中</td><td>12</td><td>15</td><td>14</td><td class="dim">–</td><td class="totalcell gold-text">41</td></tr>
+      </tbody>
+    </table>
+  </div></div>
+</div>
+
+<!-- 樣式08 -->
+<div class="sample s08">
+  <h2>樣式08 節次卡片式<span>每節一張藏青小卡並排，總分卡加金光強調</span></h2>
+  <div class="frame"><div class="wrap">
+    <div class="names"><span>信義國中</span><span class="vs">VS</span><span>和平國中</span></div>
+    <div class="cards">
+      <div class="card"><div class="accent"></div><div class="q">第1節</div><div class="pair">18<br>12</div></div>
+      <div class="card"><div class="accent"></div><div class="q">第2節</div><div class="pair">22<br>15</div></div>
+      <div class="card"><div class="accent"></div><div class="q">第3節</div><div class="pair">15<br>14</div></div>
+      <div class="card"><div class="accent"></div><div class="q">第4節</div><div class="pair dim">–<br>–</div></div>
+      <div class="card total-card"><div class="accent"></div><div class="q">總分</div><div class="pair"><span class="gold-text">55</span><br><span class="gold-text">41</span></div></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- 樣式09 -->
+<div class="sample s09">
+  <h2>樣式09 計分板同款完整面板<span>左欄賽事名稱＋金分隔線＋右側四節表，跟直播中計分板一家人</span></h2>
+  <div class="frame"><div class="panel"><div class="accent"></div>
+    <div class="eventcol">夏季<br>友誼賽</div>
+    <table>
+      <thead><tr><th></th><th>第1節</th><th>第2節</th><th>第3節</th><th>第4節</th><th>總分</th></tr></thead>
+      <tbody>
+        <tr><td class="team">信義國中</td><td>18</td><td>22</td><td>15</td><td class="dim">–</td><td class="total"><span class="score-chip">55</span></td></tr>
+        <tr><td class="team">和平國中</td><td>12</td><td>15</td><td>14</td><td class="dim">–</td><td class="total"><span class="score-chip">41</span></td></tr>
+      </tbody>
+    </table>
+  </div></div>
+</div>
+
+<!-- 樣式10 -->
+<div class="sample s10">
+  <h2>樣式10 對稱鏡像式<span>節次標籤置中、兩隊分數左右鏡像對排，總分方塊收底</span></h2>
+  <div class="frame"><div class="panel"><div class="accent"></div>
+    <div class="headrow"><span>信義國中</span><span>和平國中</span></div>
+    <table>
+      <tbody>
+        <tr><td>18</td><td class="qmid">第1節</td><td>12</td></tr>
+        <tr><td>22</td><td class="qmid">第2節</td><td>15</td></tr>
+        <tr><td>15</td><td class="qmid">第3節</td><td>14</td></tr>
+        <tr><td class="dim">–</td><td class="qmid">第4節</td><td class="dim">–</td></tr>
+      </tbody>
+      <tfoot>
+        <tr><td><span class="score-chip">55</span></td><td class="qmid">總分</td><td><span class="score-chip">41</span></td></tr>
+      </tfoot>
+    </table>
+  </div></div>
+</div>
+
+</body>
+</html>
