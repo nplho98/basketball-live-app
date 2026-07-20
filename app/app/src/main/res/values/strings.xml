@@ -121,7 +121,11 @@
     <string name="temp_overheat_toast">手機過熱，效能已下降——建議移除手機殼、避免陽光直曬</string>
 
     <!-- v0.10.1：左上角實際/設定碼率顯示（直播中才顯示） -->
-    <string name="bitrate_status_format">↑%1$.1f / %2$.1f Mbps</string>
+    <!-- v0.18.12（v1.7）：固定模式顯示「固定 上限」、自動模式顯示「目標 adapter目前目標」，
+         不再兩種模式共用同一句造成「自動模式仍顯示設定上限」的語意混淆 -->
+    <string name="bitrate_status_format">%1$s %2$.1f Mbps｜送出 %3$.1f Mbps</string>
+    <string name="bitrate_mode_fixed">固定</string>
+    <string name="bitrate_mode_target">目標</string>
     <!-- v0.17.1（第一階段審查第2項）：連線中／恢復中如實顯示在碼率後 -->
     <string name="bitrate_status_with_state_format">%1$s｜%2$s</string>
     <string name="bitrate_state_connecting">連線中</string>

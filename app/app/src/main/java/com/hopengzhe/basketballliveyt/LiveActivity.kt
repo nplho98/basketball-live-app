@@ -538,12 +538,20 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
     // v0.7.0：直播中碼率自動調整，見類別頂端 KDoc 與 [onNewBitrate]。
     // Listener 只在真正串流中才呼叫 setVideoBitrateOnFly，避免收播後殘留回呼誤觸底層 API。
+    // v0.18.12（v1.7）：adapter 每次決定的目前目標——UI 與診斷 log 讀這顆欄位，不再誤用設定上限。
+    // 在 setMaxBitrate() 的每個呼叫點（開播／連線成功／pipeline 重建／離開休息）一併重設為當時上限，
+    // 固定模式下 adapter 永不呼叫，此欄位維持等於設定上限，故同一顆變數兩種模式都能直接當「目標」用。
+    private var currentAdaptedTargetBps: Int = 0
     private val bitrateAdapter = BitrateAdapter { adaptedBitrate ->
+        currentAdaptedTargetBps = adaptedBitrate
         if (rtmpCamera2.isStreaming) {
             rtmpCamera2.setVideoBitrateOnFly(adaptedBitrate)
             // v0.17.0（第一階段第3項）：記錄 adapter 目標與實際傳入 setVideoBitrateOnFly 的值（此處相同）。
             // 純觀測，不改 BitrateAdapter 本身。
             DiagLogger.log(this, "BITRATE", "adapter 目標=$adaptedBitrate → setVideoBitrateOnFly=$adaptedBitrate")
+            // v0.18.12（v1.7）：目標同一筆變更立即刷新 UI，避免落後到下一筆 onNewBitrate 回呼才更新
+            // （renderBitrateStatusText 純渲染、不重跑 EWMA，不會造成樣本重複計數）。
+            runOnUiThread { renderBitrateStatusText() }
         } else {
             DiagLogger.log(this, "BITRATE", "adapter 目標=$adaptedBitrate（未串流，略過 setVideoBitrateOnFly）")
         }
@@ -616,6 +624,10 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private var bitrateWarningState = ""
     private var bitratePendingWarningState = ""
     private var bitratePendingWarningCount = 0
+    // v0.18.12（v1.7）：renderBitrateStatusText 純渲染快取——最近一次算好的顯示狀態與量測值，
+    // 讓 adapter 目標變更時可以立即重繪畫面，不必重跑 EWMA／樣本計數（見 updateBitrateStatusDisplay）。
+    private var lastBitrateDisplayState = ""
+    @Volatile private var lastMeasuredBitrateBps = 0L
 
     // v0.12.0：斷線重連強化——等待中的重連 coroutine／狀態，見 scheduleReconnect／
     // performReconnectAttempt／registerNetworkCallbackForReconnect（類別頂端 KDoc）
@@ -1368,6 +1380,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         applyStreamSettingsAndStartPreview()
         // v0.7.0：碼率自動調整上限＝使用者當下選擇的碼率設定值，調整過程不會超過此值
         bitrateAdapter.setMaxBitrate(StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this)))
+        currentAdaptedTargetBps = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
         binding.tvLiveIndicator.text = "● 連線中…"
         binding.tvLiveIndicator.visibility = View.VISIBLE
         // v0.17.0（第一階段第2項）：重連狀態初始化改在 startStream() **之前**——防禦性排序，避免
@@ -1394,10 +1407,10 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         highlightSessionTimestamp = HighlightStore.newSessionTimestamp()
         liveStartElapsedMs = SystemClock.elapsedRealtime()
         // v0.10.1：直播中才顯示實際/設定碼率，第一筆數字等 onNewBitrate 回報後更新
-        binding.tvBitrateStatus.text = getString(
-            R.string.bitrate_status_format, 0.0, StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this)) / 1_000_000.0
-        )
-        binding.tvBitrateStatus.setTextColor(Color.WHITE)
+        // v0.18.12（v1.7）：改走 renderBitrateStatusText 統一渲染，避免格式與模式標籤各寫一份
+        lastBitrateDisplayState = "連線中"
+        lastMeasuredBitrateBps = 0L
+        renderBitrateStatusText()
         binding.tvBitrateStatus.visibility = View.VISIBLE
         // v0.14.0：工作2——不在這裡就變紅字「收播」，維持 setLiveButtonPending() 設下的灰色過渡狀態，
         // 真正連線成功（onConnectionSuccess）才呼叫 setLiveUiState(true)（見類別頂端 KDoc）
@@ -1811,6 +1824,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             val targetBitrate = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
             bitrateAdapter.reset()
             bitrateAdapter.setMaxBitrate(targetBitrate)
+            currentAdaptedTargetBps = targetBitrate
             rtmpCamera2.setVideoBitrateOnFly(targetBitrate)
             bitrateAdaptationWarmup.start(SystemClock.elapsedRealtime())
             reconnectRecoveryGate.start(SystemClock.elapsedRealtime())
@@ -1986,7 +2000,12 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
 
         // 固定碼率模式不餵 BitrateAdapter，但上面的連線健康判定仍照常執行。
-        if (!StreamPrefs.isBitrateAutoAdjust(this)) return
+        // v0.18.12（v1.7）：固定模式明確自行清壅塞提示，不依賴「設定頁只能在未開播時修改」這個
+        // UI 入口鎖——就算未來生命週期或設定寫入時機改變，固定模式一律不得殘留壅塞提示。
+        if (!StreamPrefs.isBitrateAutoAdjust(this)) {
+            runOnUiThread { binding.tvBitrateCongestion.visibility = View.GONE }
+            return
+        }
 
         val hasCongestion = rtmpCamera2.getStreamClient().hasCongestion()
         DiagLogger.log(this, "BITRATE", "raw=$bitrate hasCongestion=$hasCongestion")
@@ -2040,6 +2059,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             delay(RECONNECT_PIPELINE_RESTART_DELAY_MS)
             val target = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this@LiveActivity))
             bitrateAdapter.setMaxBitrate(target)
+            currentAdaptedTargetBps = target
             rtmpCamera2.setVideoBitrateOnFly(target)
             isStreamPipelineRebuilding = false
             DiagLogger.log(this@LiveActivity, "RECOVERY", "重新 startStream target=$target")
@@ -2085,12 +2105,23 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      *   - 非有效樣本（休息中、0 值）不更新 EWMA、維持中性白字。
      * 進出休息都會呼叫 [resetBitrateWarningEpoch] 重設 epoch（見 enter/exitBreakMode）。
      * 註：本函式只讀 raw 值、不碰 [bitrateAdapter] 與 hasCongestion 的真實壅塞判定與輸入。
+     *
+     * v0.18.12（v1.7）：碼率 UI 語意修正——
+     * - 固定模式「目標」欄＝設定上限；自動模式「目標」欄＝[currentAdaptedTargetBps]（adapter 實際
+     *   目前目標），不再兩種模式共用設定上限造成「自動模式仍顯示上限」的歧義。
+     * - 達標比率（顏色）分母同理：自動模式用 adapter 實際目標，固定模式固定用設定上限，不依賴
+     *   currentAdaptedTargetBps 在固定模式「理論上不會被改」這個隱含假設。
+     * - EWMA／樣本計數等有副作用的運算只在本函式跑一次；純渲染移到 [renderBitrateStatusText]，
+     *   供 adapter 目標變更時立即刷新畫面而不重複計數（見 [bitrateAdapter]）。
      */
     private fun updateBitrateStatusDisplay(actualBps: Long) {
-        val targetBps = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
-        if (targetBps <= 0) return
+        val configuredLimitBps = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
+        if (configuredLimitBps <= 0) return
+        lastMeasuredBitrateBps = actualBps
 
         val isValidSample = isConnectionEstablished && !isBreakMode && actualBps > 0
+        val autoAdjust = StreamPrefs.isBitrateAutoAdjust(this)
+        val ratioTargetBps = if (autoAdjust && currentAdaptedTargetBps > 0) currentAdaptedTargetBps else configuredLimitBps
         val state: String = when {
             !isConnectionEstablished -> "連線中"
             !isValidSample -> "中性"      // 休息中或 0 值：不更新 EWMA，維持中性
@@ -2105,11 +2136,39 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                     "恢復中"
                 } else {
                     bitrateShowRecoveringGrace = false
-                    // v0.17.1（審查第4項）：EWMA 跨門檻得出瞬時判定，再經連續 N 筆遲滯才提交切色
-                    stabilizeWarningState(instantWarningState(bitrateEwmaBps / targetBps))
+                    if (autoAdjust) {
+                        // v0.17.1（審查第4項）：EWMA 跨門檻得出瞬時判定，再經連續 N 筆遲滯才提交切色
+                        stabilizeWarningState(instantWarningState(bitrateEwmaBps / ratioTargetBps))
+                    } else {
+                        // v0.18.12（v1.7）：固定模式沒有 adapter 介入，送出量單純反映畫面內容複雜度，
+                        // 靜態畫面下降是正常現象——不套用送出／設定值比例警示，一律中性白字，
+                        // 避免重現「靜態畫面被誤染紅＝以為設定被自動降低」的原始問題。
+                        "中性"
+                    }
                 }
             }
         }
+        lastBitrateDisplayState = state
+        renderBitrateStatusText()
+
+        // 逐筆核對用：模式／設定上限／adapter 目標／實際送出／EWMA／有效樣本序號／狀態（v1.7 診斷欄位）
+        DiagLogger.log(
+            this, "BITRATE-UI",
+            "autoAdjust=$autoAdjust configuredLimit=$configuredLimitBps adaptedTarget=$currentAdaptedTargetBps " +
+                "measured=$actualBps ewma=${bitrateEwmaBps.toLong()} validN=$bitrateValidSampleCount state=$state"
+        )
+    }
+
+    /**
+     * v0.18.12（v1.7）：純渲染——只依目前已算好的 [lastBitrateDisplayState]／[lastMeasuredBitrateBps]／
+     * [currentAdaptedTargetBps] 畫面，不動 EWMA 或樣本計數。供 [updateBitrateStatusDisplay] 收尾呼叫，
+     * 也供 [bitrateAdapter] 目標變更時立即刷新畫面（同一筆 callback 內，不必等下一次 onNewBitrate）。
+     */
+    private fun renderBitrateStatusText() {
+        val configuredLimitBps = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
+        val autoAdjust = StreamPrefs.isBitrateAutoAdjust(this)
+        val displayTargetBps = if (autoAdjust && currentAdaptedTargetBps > 0) currentAdaptedTargetBps else configuredLimitBps
+        val state = lastBitrateDisplayState
 
         // v0.17.1（審查第2項）：raw 數值照常顯示；「連線中」「恢復中」如實顯示在 UI（附在碼率後），
         // 達標/偏低/不足維持只以顏色表示（避免畫面過雜）。
@@ -2118,7 +2177,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             "恢復中" -> getString(R.string.bitrate_state_recovering)
             else -> null
         }
-        val baseText = getString(R.string.bitrate_status_format, actualBps / 1_000_000.0, targetBps / 1_000_000.0)
+        val modeLabel = if (autoAdjust) getString(R.string.bitrate_mode_target) else getString(R.string.bitrate_mode_fixed)
+        val baseText = getString(
+            R.string.bitrate_status_format,
+            modeLabel, displayTargetBps / 1_000_000.0, lastMeasuredBitrateBps / 1_000_000.0
+        )
         binding.tvBitrateStatus.text = if (suffix != null) {
             getString(R.string.bitrate_status_with_state_format, baseText, suffix)
         } else {
@@ -2127,17 +2190,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
         binding.tvBitrateStatus.setTextColor(
             when (state) {
-                "連線中", "中性", "達標" -> Color.WHITE
+                "連線中", "中性", "達標", "" -> Color.WHITE
                 "恢復中" -> BITRATE_COLOR_RECOVERING
                 "偏低" -> TEMP_COLOR_COOLDOWN
                 else -> TEMP_COLOR_THROTTLED   // 不足
             }
-        )
-
-        // 逐筆核對用：raw／EWMA／有效樣本序號／狀態／target（第4項驗收）
-        DiagLogger.log(
-            this, "BITRATE-UI",
-            "raw=$actualBps ewma=${bitrateEwmaBps.toLong()} validN=$bitrateValidSampleCount state=$state target=$targetBps"
         )
     }
 
@@ -3356,6 +3413,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             val targetBitrate = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
             bitrateAdapter.reset()
             bitrateAdapter.setMaxBitrate(targetBitrate)
+            currentAdaptedTargetBps = targetBitrate
             rtmpCamera2.setVideoBitrateOnFly(targetBitrate)
             bitrateAdaptationWarmup.start(SystemClock.elapsedRealtime())
             reconnectRecoveryGate.start(SystemClock.elapsedRealtime())
