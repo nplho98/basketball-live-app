@@ -64,7 +64,9 @@ object StreamPrefs {
     // v0.10.0：同步錄影備份選項文字，需與 strings.xml 的 record_resolution_options／
     // record_save_mode_options 完全一致（Spinner 還原機制，沿用上面既有慣例）
     const val RECORD_RESOLUTION_SAME_AS_LIVE = "與直播相同"
+    const val RECORD_RESOLUTION_FIXED_1080P30 = "1920x1080（1080p／30 fps／20 Mbps）"
     const val RECORD_SAVE_MODE_GALLERY = "相簿"
+    const val RECORD_SAVE_MODE_DOWNLOADS = "Downloads"
     const val RECORD_SAVE_MODE_CUSTOM_FOLDER = "自訂資料夾…"
 
     // v0.15.5：已移除功能殘留的死鍵——+3 特效（v0.14.1 拆）與公牛動畫開關（v0.11.x），

@@ -94,10 +94,8 @@ class SettingsActivity : AppCompatActivity() {
                 bitrateAutoAdjust = binding.switchBitrateAutoAdjust.isChecked,
                 streamKey = binding.etStreamKey.text.toString().trim(),
                 recordEnabled = binding.switchRecordEnabled.isChecked,
-                recordResolution = binding.spinnerRecordResolution.selectedItem?.toString()
-                    ?: StreamPrefs.RECORD_RESOLUTION_SAME_AS_LIVE,
-                recordSaveMode = binding.spinnerRecordSaveMode.selectedItem?.toString()
-                    ?: StreamPrefs.RECORD_SAVE_MODE_GALLERY
+                recordResolution = StreamPrefs.RECORD_RESOLUTION_FIXED_1080P30,
+                recordSaveMode = StreamPrefs.RECORD_SAVE_MODE_DOWNLOADS
             )
             // v0.9.17：兩欄合併存成「第一行\n第二行」；第二行空白就只存第一行，
             // 第一行空白視同整個賽事名稱留空（第二行單獨有字也不顯示，避免燒入端出現孤行）

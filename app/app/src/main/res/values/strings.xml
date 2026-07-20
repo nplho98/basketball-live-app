@@ -20,6 +20,9 @@
     <string name="start_live_confirm_title">開始直播</string>
     <string name="start_live_confirm_message">確定要開始直播嗎？</string>
     <string name="start_live_confirm_ok">開播</string>
+    <string name="stop_live_confirm_title">確認收播</string>
+    <string name="stop_live_confirm_message">確定要結束直播與同步錄影嗎？</string>
+    <string name="stop_live_confirm_ok">確定收播</string>
     <string name="start_live_reset_scoreboard_checkbox">重置計分板（分數／犯規／節數）</string>
     <string name="start_live_scoreboard_reset_toast">計分板已重置</string>
     <!-- v0.10.0：同步錄影備份開啟時，開播確認框追加的空間預估提示 -->
@@ -106,7 +109,7 @@
     <string name="record_failed_message_format">錄影備份失敗，直播不受影響：%1$s</string>
     <string name="record_unknown_error_message">未知原因</string>
     <string name="record_custom_folder_fallback_toast">自訂資料夾錄影失敗，已自動改用相簿續錄</string>
-    <string name="record_saved_gallery_toast">錄影已儲存到相簿</string>
+    <string name="record_saved_gallery_toast">錄影已儲存到 Downloads</string>
     <string name="record_saved_path_format">錄影已儲存：%1$s</string>
 
     <!-- v0.10.1：右上角電池溫度顯示——38 以下藍「健康」、38~42（含42）黃「請降溫」、
@@ -119,6 +122,10 @@
 
     <!-- v0.10.1：左上角實際/設定碼率顯示（直播中才顯示） -->
     <string name="bitrate_status_format">↑%1$.1f / %2$.1f Mbps</string>
+    <!-- v0.17.1（第一階段審查第2項）：連線中／恢復中如實顯示在碼率後 -->
+    <string name="bitrate_status_with_state_format">%1$s｜%2$s</string>
+    <string name="bitrate_state_connecting">連線中</string>
+    <string name="bitrate_state_recovering">恢復中</string>
 
     <!-- v0.12.0：直播前景服務——常駐通知文字（見 LiveForegroundService） -->
     <string name="foreground_service_channel_name">直播進行中通知</string>
@@ -130,6 +137,10 @@
 
     <!-- v0.12.0：AE/AF 同步鎖定——反射失敗或裝置不支援時退回只鎖對焦，只提示一次 -->
     <string name="ae_sync_unsupported_message">此裝置不支援同步鎖定曝光，長按仍會鎖定對焦</string>
+
+    <!-- v0.17.0（第一階段第1項）：長按鎖定後如實顯示鎖到的範圍——曝光有無一起鎖 -->
+    <string name="focus_locked_with_ae">曝光與對焦已鎖</string>
+    <string name="focus_locked_focus_only">僅鎖焦（此裝置未鎖定曝光）</string>
 
     <!-- v0.12.2：全域當機記錄——見 CrashLogger／LoginActivity -->
     <string name="crash_log_detected_toast_format">偵測到上次未預期關閉的記錄（%1$s），已儲存在裝置的 crashlog 資料夾</string>
@@ -227,10 +238,10 @@
     <!-- v0.10.0：同步錄影備份——設定頁新增區塊，見 LiveActivity 類別頂端 KDoc -->
     <string name="settings_record_section_title">同步錄影備份</string>
     <string name="settings_record_enabled_label">同步錄影備份</string>
-    <string name="settings_record_resolution_label">錄影解析度</string>
-    <string name="settings_record_resolution_note">「與直播相同」共用編碼器、耗電更省，但網路差時備份畫質會跟著直播一起降低；選獨立解析度則錄影畫質全程恆定，代價是耗電發熱增加。2K/4K 檔案與發熱顯著增加（4K 約 9GB／小時），長時間直播建議先短時間試錄確認手機散熱</string>
-    <string name="settings_record_save_mode_label">錄影存檔位置</string>
-    <string name="settings_record_save_mode_note">自訂資料夾的影片不一定立刻出現在相簿，但檔案管理器一定找得到</string>
+    <string name="settings_record_resolution_label">錄影規格（固定）</string>
+    <string name="settings_record_resolution_note">固定使用 1920×1080、30 FPS、H.264、20 Mbps 錄影，約 9.1 GB／小時；此設定不受直播解析度、直播 FPS 或網路碼率調整影響。</string>
+    <string name="settings_record_save_mode_label">錄影存放位置（固定）</string>
+    <string name="settings_record_save_mode_note">固定儲存到手機內部儲存空間的 Downloads 資料夾。</string>
     <string name="settings_record_folder_none">尚未選擇資料夾</string>
     <string name="settings_record_folder_current_format">目前資料夾：%1$s</string>
     <string name="settings_record_folder_cancelled_use_gallery_toast">已取消選擇資料夾，改用相簿</string>
@@ -269,16 +280,11 @@
     <!-- v0.10.4：新增 2K/4K（相機擷取會跟著用錄影解析度，是真畫質非放大；
          裝置編碼器不支援雙編碼高解析時 prepareVideo 會失敗，沿用既有錯誤提示） -->
     <string-array name="record_resolution_options">
-        <item>與直播相同</item>
-        <item>1280x720（720p）</item>
-        <item>1920x1080（1080p）</item>
-        <item>2560x1440（2K）</item>
-        <item>3840x2160（4K）</item>
+        <item>1920x1080（1080p／30 fps／20 Mbps）</item>
     </string-array>
 
     <string-array name="record_save_mode_options">
-        <item>相簿</item>
-        <item>自訂資料夾…</item>
+        <item>Downloads</item>
     </string-array>
 
     <!-- v0.13.0：功能 A 精彩時刻標記——設定頁「標記回推秒數」下拉，文字需與

@@ -391,6 +391,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:entries="@array/record_resolution_options"
+            android:visibility="gone"
             android:layout_marginTop="4dp" />
 
         <TextView
@@ -414,12 +415,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:entries="@array/record_save_mode_options"
+            android:visibility="gone"
             android:layout_marginTop="4dp" />
 
         <TextView
             android:id="@+id/tvRecordFolderName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:textColor="@color/text_secondary"
             android:textSize="12sp"
             android:layout_marginTop="4dp"

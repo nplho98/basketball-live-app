@@ -61,6 +61,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.services.youtube.YouTube
 import com.hopengzhe.basketballliveyt.databinding.ActivityLiveBinding
 import com.pedro.common.ConnectChecker
+import com.pedro.common.socket.base.SocketType
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
 import com.pedro.encoder.utils.gl.TranslateTo
 import com.pedro.library.base.Camera2Base
@@ -539,8 +540,22 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private val bitrateAdapter = BitrateAdapter { adaptedBitrate ->
         if (rtmpCamera2.isStreaming) {
             rtmpCamera2.setVideoBitrateOnFly(adaptedBitrate)
+            // v0.17.0（第一階段第3項）：記錄 adapter 目標與實際傳入 setVideoBitrateOnFly 的值（此處相同）。
+            // 純觀測，不改 BitrateAdapter 本身。
+            DiagLogger.log(this, "BITRATE", "adapter 目標=$adaptedBitrate → setVideoBitrateOnFly=$adaptedBitrate")
+        } else {
+            DiagLogger.log(this, "BITRATE", "adapter 目標=$adaptedBitrate（未串流，略過 setVideoBitrateOnFly）")
         }
     }
+    // v0.17.2（Phase 2）：每次 RTMP 連線成功後建立獨立的 adapter 暖機 epoch；期間仍保留
+    // raw/UI/hasCongestion/診斷，只略過 adaptBitrate，避免連線初期的暫態壅塞連續砍低碼率。
+    private val bitrateAdaptationWarmup = BitrateAdaptationWarmup(BITRATE_ADAPTATION_WARMUP_MS)
+    private val reconnectRecoveryGate = ReconnectRecoveryGate(
+        RECONNECT_RECOVERY_TIMEOUT_MS, RECONNECT_RECOVERY_HEALTHY_RATIO, RECONNECT_RECOVERY_HEALTHY_SAMPLES
+    )
+    private var reconnectRecoveryWatchdogJob: Job? = null
+    private var currentRtmpUrl: String? = null
+    private var isStreamPipelineRebuilding = false
 
     // v0.10.0：同步錄影備份狀態，見類別頂端 KDoc 與 [startRecordIfEnabled]
     private var isRecordingActive = false
@@ -577,8 +592,24 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
     // v0.12.0：AE/AF 同步鎖定——裝置是否支援 AE 鎖定/測光區域，第一次用到時查一次並快取
     // （同一台裝置的相機硬體能力不會變，見 isAeLockSupported）；反射任一步失敗只提示一次。
+    // v0.17.0（第一階段第1項）：AE 鎖定能力與 AE 測光區域能力拆開快取——支援 AE 鎖定但不支援測光
+    // 區域的裝置，曝光鎖仍要生效（原本綁在一起會害這種裝置整組跳過），見 isAeLockSupported/isAeRegionSupported。
     private var aeLockSupported: Boolean? = null
+    private var aeRegionSupported: Boolean? = null
     private var hasWarnedAeSyncFailed = false
+
+    // v0.17.0（第一階段第4/5項）：碼率警告狀態與 raw 數值拆開——raw 照常顯示，警告狀態改用 EWMA＋
+    // 連續樣本判定。進出休息都重設 epoch；離開休息後前兩筆有效樣本顯示「恢復中」；連線成功前顯示
+    // 「連線中」不把暖機低碼率當正式異常。有效樣本＝直播中、非休息、actualBps>0（見 updateBitrateStatusDisplay）。
+    private var bitrateEwmaBps = 0.0
+    private var bitrateValidSampleCount = 0
+    private var bitrateShowRecoveringGrace = false
+    private var isConnectionEstablished = false
+    // v0.17.1（第一階段審查第4項）：警告狀態連續樣本遲滯——已提交顯示的狀態與待切換狀態＋連續筆數，
+    // 需連續 BITRATE_WARNING_STABLE_SAMPLES 筆一致才換色，避免 EWMA 在門檻附近反覆閃色。
+    private var bitrateWarningState = ""
+    private var bitratePendingWarningState = ""
+    private var bitratePendingWarningCount = 0
 
     // v0.12.0：斷線重連強化——等待中的重連 coroutine／狀態，見 scheduleReconnect／
     // performReconnectAttempt／registerNetworkCallbackForReconnect（類別頂端 KDoc）
@@ -666,6 +697,13 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
         rtmpCamera2 = RtmpCamera2(binding.openGlView, this)
         rtmpCamera2.getStreamClient().setReTries(RECONNECT_MAX_RETRIES)
+        // v0.17.7：RootEncoder FpsListener 計算直播編碼器每秒實際輸出幀數。純觀測，不限幀、不改參數。
+        rtmpCamera2.setFpsListener { actualFps ->
+            DiagLogger.log(
+                this, "FPS-STREAM",
+                "encodedFps=$actualFps target=${StreamPrefs.getFps(this)} recording=${rtmpCamera2.isRecording}"
+            )
+        }
         // v0.15.0：根治直播中閃退（crashlog 6 筆全同一堆疊：GL 渲染執行緒 SurfaceTexture.updateTexImage
         // 丟 IllegalStateException「Unable to update texture contents」）——反編譯 library-2.6.1.aar
         // 查證 OpenGlView.onFrameAvailable 的 draw() 有 try-catch(RuntimeException)：renderErrorCallback
@@ -878,34 +916,35 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // VBR 開啟時的預設值，不改變既有顯示行為）。此係數只影響 BitrateManager 回報數字，
         // 對畫質／錄影／實際編碼零影響。
         rtmpCamera2.getStreamClient().setBitrateExponentialFactor(0.5f)
+        // v0.17.4：斷網復線改用 Java socket。實機證據顯示預設 Ktor CIO socket 在網路恢復後
+        // 反覆發生讀寫 SocketTimeoutException；只替換 socket 實作，保留既有 reTry 與暖機狀態機。
+        rtmpCamera2.getStreamClient().setSocketType(SocketType.JAVA)
 
-        // v0.10.0：錄影開啟且解析度≠直播時，改呼叫完整版 prepareVideo 多載帶入錄影參數
-        // （內部自動啟第二顆編碼器，differentRecordResolution=true，見類別頂端 KDoc）；
-        // 其餘情況維持現行呼叫（共用編碼器，近零耗電）。
-        val recordResolutionSetting = StreamPrefs.getRecordResolution(this)
-        val useIndependentRecordEncoder =
-            StreamPrefs.isRecordEnabled(this) && recordResolutionSetting != StreamPrefs.RECORD_RESOLUTION_SAME_AS_LIVE
-
+        // v0.18.10：手機端錄影正式固定 1080p30／20 Mbps；直播 FPS 仍沿用直播設定。
+        val recordingEnabled = StreamPrefs.isRecordEnabled(this)
         val prepared = try {
-            // rotation 固定 0：直播主畫面已鎖定橫屏
-            if (useIndependentRecordEncoder) {
-                val (recordWidth, recordHeight) = StreamPrefs.parseResolution(recordResolutionSetting)
-                val recordBitrate = recordBitrateForResolution(recordHeight)
-                // 11 參數完整多載：width,height,fps,bitrate,iFrameInterval,rotation,profile,level,
-                // recordWidth,recordHeight,recordBitrate（已查證 RootEncoder 2.6.1 原始碼簽名與順序）
-                rtmpCamera2.prepareVideo(
-                    width, height, fps, bitrate,
-                    2, 0, -1, -1,
-                    recordWidth, recordHeight, recordBitrate
-                ) && rtmpCamera2.prepareAudio(AUDIO_BITRATE, AUDIO_SAMPLE_RATE, true)
+            if (recordingEnabled) {
+                val captureSize = android.util.Size(maxOf(width, RECORD_WIDTH), maxOf(height, RECORD_HEIGHT))
+                val supportedFps = runCatching {
+                    rtmpCamera2.getSupportedFps(captureSize, rtmpCamera2.cameraFacing)
+                }.getOrElse { emptyList() }
+                DiagLogger.log(
+                    this, "RECORD-CONFIG",
+                    "fixed=${RECORD_WIDTH}x${RECORD_HEIGHT} fps=$RECORD_FPS bitrate=$RECORD_BITRATE_BPS " +
+                        "codec=H264 liveFps=$fps capture=$captureSize supportedFps=$supportedFps"
+                )
+                val videoPrepared = rtmpCamera2.prepareVideo(width, height, fps, bitrate, 0)
+                val recordPrepared = videoPrepared && prepareFixedRecordEncoder()
+                if (recordPrepared) setStreamEncoderReportedFps(RECORD_FPS)
+                recordPrepared && rtmpCamera2.prepareAudio(AUDIO_BITRATE, AUDIO_SAMPLE_RATE, true)
             } else {
                 rtmpCamera2.prepareVideo(width, height, fps, bitrate, 0) &&
                     rtmpCamera2.prepareAudio(AUDIO_BITRATE, AUDIO_SAMPLE_RATE, true)
             }
         } catch (e: Exception) {
+            DiagLogger.log(this, "RECORD-CONFIG", "準備失敗：${e.javaClass.simpleName}:${e.message}")
             false
         }
-
         if (!prepared) {
             Toast.makeText(
                 this,
@@ -922,6 +961,12 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
         if (!rtmpCamera2.isOnPreview) {
             rtmpCamera2.startPreview()
+            if (recordingEnabled) restoreLiveEncoderReportedFps(fps)
+            lifecycleScope.launch {
+                delay(1_000L)
+
+                logVideoPipelineDiagnostics(fps)
+            }
         }
     }
 
@@ -929,6 +974,133 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * v0.10.0：獨立錄影解析度的固定碼率（YAGNI：不另開選項，見計畫書功能包①）。
      * v0.10.4：新增 2K（[RECORD_BITRATE_2K_BPS]）與 4K（[RECORD_BITRATE_4K_BPS]）。
      */
+    /**
+     * v0.17.7：記錄 Camera2 實際 fps/range、GL 類型，以及直播／錄影兩顆編碼器的準備參數。
+     * 反射欄位均已用 RootEncoder 2.6.1 AAR 查證；失敗只寫診斷，不影響直播。
+     */
+    private fun logVideoPipelineDiagnostics(requestedFps: Int) {
+        runCatching {
+            val baseClass = Camera2Base::class.java
+            val cameraManager = baseClass.getDeclaredField("cameraManager").apply { isAccessible = true }
+                .get(rtmpCamera2)
+            val cameraClass = cameraManager.javaClass
+            val cameraFps = cameraClass.getDeclaredField("fps").apply { isAccessible = true }
+                .getInt(cameraManager)
+            val builder = cameraClass.getDeclaredField("builderInputSurface").apply { isAccessible = true }
+                .get(cameraManager) as? CaptureRequest.Builder
+            val appliedRange = builder?.get(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE)
+            val differentRecord = baseClass.getDeclaredField("differentRecordResolution").apply { isAccessible = true }
+                .getBoolean(rtmpCamera2)
+            val streamEncoder = baseClass.getDeclaredField("videoEncoder").apply { isAccessible = true }
+                .get(rtmpCamera2) as com.pedro.encoder.video.VideoEncoder
+            val recordEncoder = baseClass.getDeclaredField("videoEncoderRecord").apply { isAccessible = true }
+                .get(rtmpCamera2) as com.pedro.encoder.video.VideoEncoder
+            DiagLogger.log(
+                this, "VIDEO-PIPELINE",
+                "requestedFps=$requestedFps cameraFps=$cameraFps appliedRange=$appliedRange " +
+                    "differentRecord=$differentRecord gl=${rtmpCamera2.glInterface.javaClass.simpleName} " +
+                    "stream=${streamEncoder.width}x${streamEncoder.height}@${streamEncoder.fps}/${streamEncoder.bitRate} " +
+                    "record=${recordEncoder.width}x${recordEncoder.height}@${recordEncoder.fps}/${recordEncoder.bitRate}"
+            )
+        }.onFailure {
+            DiagLogger.log(this, "VIDEO-PIPELINE", "診斷反射失敗：${it.javaClass.simpleName}:${it.message}")
+        }
+    }
+    /** 獨立準備錄影編碼器並把 Surface 加入既有 GL 管線，不重設直播編碼器 Surface。 */
+    private fun prepareFixedRecordEncoder(): Boolean {
+        val baseClass = Camera2Base::class.java
+        val recordEncoder = baseClass.getDeclaredField("videoEncoderRecord").apply { isAccessible = true }
+            .get(rtmpCamera2) as com.pedro.encoder.video.VideoEncoder
+        val prepared = recordEncoder.prepareVideoEncoder(
+            RECORD_WIDTH, RECORD_HEIGHT, RECORD_FPS, RECORD_BITRATE_BPS,
+            0, 2, com.pedro.encoder.video.FormatVideoEncoder.SURFACE
+        )
+        if (!prepared) return false
+        baseClass.getDeclaredField("differentRecordResolution").apply { isAccessible = true }
+            .setBoolean(rtmpCamera2, true)
+        rtmpCamera2.glInterface.addMediaCodecSurface(recordEncoder.inputSurface)
+        return true
+    }
+
+    /** 只暫時改 Camera2 開啟時讀取的 FPS，不 reset、不更換直播 Surface。 */
+    private fun setStreamEncoderReportedFps(fps: Int) {
+        val field = Camera2Base::class.java.getDeclaredField("videoEncoder").apply { isAccessible = true }
+        val encoder = field.get(rtmpCamera2) as com.pedro.encoder.video.VideoEncoder
+        encoder.setFps(fps)
+        encoder.setForceFps(fps)
+    }
+
+    private fun restoreLiveEncoderReportedFps(liveFps: Int) {
+        runCatching { setStreamEncoderReportedFps(liveFps) }.onFailure {
+            DiagLogger.log(this, "RECORD-CONFIG", "還原直播 FPS 失敗：${it.message}")
+        }
+    }
+
+    /**
+     * 曾用於 1080p60 技術尖峰：將一般 Camera2 Session 換成 constrained high-speed Session。
+     * 僅替換相機擷取 Session，OpenGL 與直播／錄影兩顆編碼器 Surface 均保持不變。
+     */
+    private fun enableConstrainedHighSpeedCapture() {
+        runCatching {
+            val baseClass = Camera2Base::class.java
+            val manager = baseClass.getDeclaredField("cameraManager").apply { isAccessible = true }
+                .get(rtmpCamera2)
+            val managerClass = manager.javaClass
+            val characteristics = managerClass.getMethod("getCameraCharacteristics").invoke(manager)
+                as android.hardware.camera2.CameraCharacteristics
+            val map = characteristics.get(
+                android.hardware.camera2.CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP
+            ) ?: error("找不到相機串流設定")
+            val size = android.util.Size(RECORD_WIDTH, RECORD_HEIGHT)
+            val ranges = map.getHighSpeedVideoFpsRangesFor(size).toList()
+            // 此 OPPO 的 1080p 高速表只提供可變 30~120 與固定 120；可變範圍實測會掉到低幀率，
+            // 因此使用固定高速範圍，再由 GL 將相機輸入限制成錄影所需的 60 FPS。
+            val targetRange = ranges.firstOrNull { it.lower == it.upper && it.upper >= RECORD_FPS }
+                ?: error("裝置未提供固定高速範圍，ranges=$ranges")
+            (rtmpCamera2.glInterface as com.pedro.library.view.OpenGlView).forceFpsLimit(RECORD_FPS)
+            val cameraDevice = managerClass.getDeclaredField("cameraDevice").apply { isAccessible = true }
+                .get(manager) as android.hardware.camera2.CameraDevice
+            val surface = managerClass.getDeclaredField("surfaceEncoder").apply { isAccessible = true }
+                .get(manager) as android.view.Surface
+            val builder = managerClass.getDeclaredField("builderInputSurface").apply { isAccessible = true }
+                .get(manager) as android.hardware.camera2.CaptureRequest.Builder
+            val sessionField = managerClass.getDeclaredField("cameraCaptureSession").apply { isAccessible = true }
+            val oldSession = sessionField.get(manager) as? android.hardware.camera2.CameraCaptureSession
+            val handler = managerClass.getDeclaredField("cameraHandler").apply { isAccessible = true }
+                .get(manager) as android.os.Handler
+
+            builder.set(android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, targetRange)
+            oldSession?.stopRepeating()
+            oldSession?.close()
+            cameraDevice.createConstrainedHighSpeedCaptureSession(
+                listOf(surface),
+                object : android.hardware.camera2.CameraCaptureSession.StateCallback() {
+                    override fun onConfigured(session: android.hardware.camera2.CameraCaptureSession) {
+                        runCatching {
+                            val highSpeed = session as android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession
+                            sessionField.set(manager, highSpeed)
+                            val burst = highSpeed.createHighSpeedRequestList(builder.build())
+                            highSpeed.setRepeatingBurst(burst, null, handler)
+                            DiagLogger.log(
+                                this@LiveActivity, "HIGH-SPEED",
+                                "啟用成功 size=$size range=$targetRange burst=${burst.size}"
+                            )
+                        }.onFailure {
+                            DiagLogger.log(this@LiveActivity, "HIGH-SPEED", "啟用失敗：${it.javaClass.simpleName}:${it.message}")
+                        }
+                    }
+
+                    override fun onConfigureFailed(session: android.hardware.camera2.CameraCaptureSession) {
+                        DiagLogger.log(this@LiveActivity, "HIGH-SPEED", "Session configure failed")
+                    }
+                },
+                handler
+            )
+            DiagLogger.log(this, "HIGH-SPEED", "建立中 size=$size ranges=$ranges")
+        }.onFailure {
+            DiagLogger.log(this, "HIGH-SPEED", "不支援：${it.javaClass.simpleName}:${it.message}")
+        }
+    }
     private fun recordBitrateForResolution(recordHeight: Int): Int = when {
         recordHeight >= 2160 -> RECORD_BITRATE_4K_BPS
         recordHeight >= 1440 -> RECORD_BITRATE_2K_BPS
@@ -948,9 +1120,21 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             if (!rtmpCamera2.isStreaming) {
                 showStartLiveConfirmDialog()
             } else {
-                stopLiveStream(showToast = true)
+                showStopLiveConfirmDialog()
             }
         }
+    }
+
+    /** 直播中按收播先確認，避免操作計分或鏡頭控制時誤觸而直接中止直播與錄影。 */
+    private fun showStopLiveConfirmDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.stop_live_confirm_title))
+            .setMessage(getString(R.string.stop_live_confirm_message))
+            .setPositiveButton(getString(R.string.stop_live_confirm_ok)) { _, _ ->
+                stopLiveStream(showToast = true)
+            }
+            .setNegativeButton(getString(R.string.dialog_cancel_button), null)
+            .show()
     }
 
     /**
@@ -1019,13 +1203,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
     /** 依目前錄影解析度設定換算每小時檔案大小（含音訊碼率），並讀取裝置目前可用空間。 */
     private fun calculateRecordSpaceEstimate(): RecordSpaceEstimate {
-        val recordResolutionSetting = StreamPrefs.getRecordResolution(this)
-        val videoBitrateBps = if (recordResolutionSetting == StreamPrefs.RECORD_RESOLUTION_SAME_AS_LIVE) {
-            StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
-        } else {
-            val (_, recordHeight) = StreamPrefs.parseResolution(recordResolutionSetting)
-            recordBitrateForResolution(recordHeight)
-        }
+        val videoBitrateBps = RECORD_BITRATE_BPS
         val bytesPerHour = (videoBitrateBps + AUDIO_BITRATE).toLong() * 3600L / 8L
         val availableBytes = try {
             StatFs(Environment.getExternalStorageDirectory().path).availableBytes
@@ -1185,13 +1363,20 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         bitrateAdapter.setMaxBitrate(StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this)))
         binding.tvLiveIndicator.text = "● 連線中…"
         binding.tvLiveIndicator.visibility = View.VISIBLE
-        rtmpCamera2.startStream(rtmpUrl)
-        // v0.12.0：斷線重連強化——每次開播重置重連計數／等待狀態，並開始監聽網路恢復事件
-        // （見 registerNetworkCallbackForReconnect／類別頂端 KDoc）
+        // v0.17.0（第一階段第2項）：重連狀態初始化改在 startStream() **之前**——防禦性排序，避免
+        // startStream 後、狀態尚未歸零前就收到極快的 onConnectionFailed 回呼讀到上一場殘留狀態。
+        // （此為排序整潔化，不宣稱單獨修復反覆重連。）
         reconnectAttemptCount = 0
         isWaitingToReconnect = false
         reconnectJob?.cancel()
         registerNetworkCallbackForReconnect()
+        // v0.17.0（第一階段第4/5項）：連線尚未建立，碼率警告 epoch 重設；暖機期碼率顯示「連線中」不當異常
+        isConnectionEstablished = false
+        resetBitrateWarningEpoch(armRecovering = false)
+        DiagLogger.startSession(this, "開播 target=${StreamPrefs.getBitrate(this)} fps=${StreamPrefs.getFps(this)}")
+        DiagLogger.log(this, "CONN", "startStream 送出")
+        currentRtmpUrl = rtmpUrl
+        rtmpCamera2.startStream(rtmpUrl)
         isRecordingActive = false
         currentRecordDestination = RecordDestination.NONE
         currentRecordFilePathOrName = null
@@ -1224,6 +1409,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.12.0：斷線重連強化——收播（含重連放棄時的終止收播）一律先收掉還在等待的重連
         // coroutine 與網路監聽，避免收播後背景還跑著一次遲來的重連把已停止的推流重新啟動
         reconnectJob?.cancel()
+        reconnectRecoveryWatchdogJob?.cancel()
+        reconnectRecoveryGate.clear()
+        currentRtmpUrl = null
         isWaitingToReconnect = false
         unregisterNetworkCallbackForReconnect()
         if (isRecordingActive) {
@@ -1240,6 +1428,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
         // v0.7.0：收播後重置碼率自動調整狀態，避免下次開播沿用上次殘留的平均值
         bitrateAdapter.reset()
+        bitrateAdaptationWarmup.clear()
+        // v0.17.0（第一階段第4/5項）：收播回到未建立連線狀態，碼率警告 epoch 一併重設
+        isConnectionEstablished = false
+        resetBitrateWarningEpoch(armRecovering = false)
+        DiagLogger.log(this, "CONN", "收播 stopLiveStream")
         // v0.12.0：enableAutoStop 已改 false，YouTube 端不會自動結束直播，改由這裡主動呼叫
         // liveBroadcasts.transition(complete)（見 endYouTubeBroadcastIfNeeded／類別頂端 KDoc）
         endYouTubeBroadcastIfNeeded()
@@ -1387,29 +1580,14 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun startRecordIfEnabled() {
         if (!StreamPrefs.isRecordEnabled(this)) return
         val fileName = buildRecordFileName()
-        val useCustomFolder = StreamPrefs.getRecordSaveMode(this) == StreamPrefs.RECORD_SAVE_MODE_CUSTOM_FOLDER
-
-        if (useCustomFolder) {
-            val customFolderStarted = runCatching { startRecordToCustomFolder(fileName) }.getOrDefault(false)
-            if (customFolderStarted) {
-                isRecordingActive = true
-                updateLiveIndicatorRecSuffix()
-                return
-            }
-            // v0.10.0 驗收補強：自訂資料夾若在開檔成功後才失敗（startRecord 拋例外），
-            // 已開的 fd 沒人收會洩漏，先收尾再退回相簿
-            try {
-                rtmpCamera2.stopRecord()
-            } catch (e: Exception) {
-                // 尚未真正開始錄影時 stopRecord 可能拋例外，忽略即可
-            }
-            finalizeRecordAfterStop()
-            Toast.makeText(this, getString(R.string.record_custom_folder_fallback_toast), Toast.LENGTH_LONG).show()
-        }
-
+        DiagLogger.log(this, "RECORD", "開始建立 Downloads/$fileName")
         val galleryResult = runCatching { startRecordToGallery(fileName) }
+        galleryResult.exceptionOrNull()?.let {
+            DiagLogger.log(this, "RECORD", "啟動例外 ${it.javaClass.simpleName}:${it.message}")
+        }
         if (galleryResult.getOrDefault(false)) {
             isRecordingActive = true
+            DiagLogger.log(this, "RECORD", "錄影已啟動 destination=$currentRecordDestination file=$currentRecordFilePathOrName")
             updateLiveIndicatorRecSuffix()
         } else {
             val reason = galleryResult.exceptionOrNull()?.message ?: getString(R.string.record_unknown_error_message)
@@ -1429,6 +1607,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * 狀態（相簿看不到已錄的部分）、fd 洩漏到 App 結束。
      */
     private fun handleRecordFailure(reason: String) {
+        DiagLogger.log(this, "RECORD", "錄影失敗：$reason")
         isRecordingActive = false
         try {
             rtmpCamera2.stopRecord()
@@ -1461,10 +1640,14 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             val values = ContentValues().apply {
                 put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
                 put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES)
+                put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
                 put(MediaStore.Video.Media.IS_PENDING, 1)
             }
-            val uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+            val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: run {
+                DiagLogger.log(this, "RECORD", "MediaStore insert 回傳 null path=${Environment.DIRECTORY_DOWNLOADS}")
+                return false
+            }
+            DiagLogger.log(this, "RECORD", "MediaStore 建檔 uri=$uri")
             val pfd = contentResolver.openFileDescriptor(uri, "w") ?: run {
                 contentResolver.delete(uri, null, null)
                 return false
@@ -1557,6 +1740,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     // ---------- ConnectChecker：推流連線狀態回呼 ----------
 
     override fun onConnectionStarted(url: String) {
+        DiagLogger.log(this, "CONN", "onConnectionStarted")
     }
 
     /**
@@ -1578,6 +1762,24 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             reconnectAttemptCount = 0
             reconnectJob?.cancel()
             isWaitingToReconnect = false
+            // v0.17.2（Phase 2）：每次首次連線／重連成功都從使用者目標建立乾淨起點，並開啟
+            // 獨立 10 秒暖機 epoch。只暫停 adapter 餵入，不動實際壅塞偵測與 UI。
+            val targetBitrate = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
+            bitrateAdapter.reset()
+            bitrateAdapter.setMaxBitrate(targetBitrate)
+            rtmpCamera2.setVideoBitrateOnFly(targetBitrate)
+            bitrateAdaptationWarmup.start(SystemClock.elapsedRealtime())
+            reconnectRecoveryGate.start(SystemClock.elapsedRealtime())
+            startReconnectRecoveryWatchdog()
+            DiagLogger.log(
+                this, "BITRATE-WARMUP",
+                "連線成功：adapter reset，恢復 target=$targetBitrate，暖機=${BITRATE_ADAPTATION_WARMUP_MS}ms"
+            )
+            // v0.17.0（第一階段第4/5項）：連線正式建立——碼率警告從此開始判定，暖機低碼率不再算異常；
+            // epoch 重設（不掛「恢復中」寬限，那只給離開休息用）讓 EWMA 從真正推流值起算，不被暖機值汙染。
+            isConnectionEstablished = true
+            resetBitrateWarningEpoch(armRecovering = false)
+            DiagLogger.log(this, "CONN", "onConnectionSuccess（連線建立）")
             LiveForegroundService.start(this, getString(R.string.foreground_service_status_live))
         }
     }
@@ -1589,12 +1791,29 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      */
     override fun onConnectionFailed(reason: String) {
         runOnUiThread {
+            if (isStreamPipelineRebuilding) {
+                DiagLogger.log(this, "RECOVERY", "pipeline 重建期間忽略舊連線失敗 reason=$reason")
+                return@runOnUiThread
+            }
+            // v0.17.0（第一階段第3項）：保留 callback 原始失敗原因供時間軸核對
+            DiagLogger.log(this, "CONN", "onConnectionFailed reason=$reason")
             scheduleReconnect(reason)
         }
     }
 
     override fun onDisconnect() {
         runOnUiThread {
+            if (isStreamPipelineRebuilding) {
+                DiagLogger.log(this, "RECOVERY", "pipeline 重建期間忽略舊連線 onDisconnect")
+                return@runOnUiThread
+            }
+            // v0.17.1（第一階段審查第3項）：確定失去連線——一律清連線建立旗標＋重設碼率 epoch，
+            // 避免殘留 bitrate 回呼被當有效直播樣本顯示達標/偏低/不足（應回到「連線中」）。
+            // 冪等：與 onConnectionFailed→scheduleReconnect／stopLiveStream 重複設 false／重設皆無副作用。
+            isConnectionEstablished = false
+            resetBitrateWarningEpoch(armRecovering = false)
+            bitrateAdaptationWarmup.clear()
+            DiagLogger.log(this, "CONN", "onDisconnect（清連線旗標＋重設碼率 epoch）")
             binding.tvLiveIndicator.visibility = View.INVISIBLE
             Toast.makeText(this, "已中斷連線", Toast.LENGTH_SHORT).show()
         }
@@ -1625,6 +1844,12 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         reconnectJob?.cancel()
         isWaitingToReconnect = true
         reconnectAttemptCount++
+        // v0.17.0（第一階段第5項）：連線已掉，回到未建立狀態——重連暖機碼率同樣顯示「連線中」不當異常
+        // v0.17.1（審查第4項）：重連時一併重設碼率 epoch＋清警告遲滯計數
+        isConnectionEstablished = false
+        resetBitrateWarningEpoch(armRecovering = false)
+        bitrateAdaptationWarmup.clear()
+        DiagLogger.log(this, "RECONNECT", "排程重連 attempt=$reconnectAttemptCount reason=$reason")
         binding.tvLiveIndicator.text = getString(R.string.live_reconnecting_format, reconnectAttemptCount)
         updateLiveIndicatorRecSuffix()
         Toast.makeText(this, "連線中斷，將自動重新連線", Toast.LENGTH_SHORT).show()
@@ -1646,6 +1871,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun performReconnectAttempt() {
         if (!isWaitingToReconnect) return
         isWaitingToReconnect = false
+        DiagLogger.log(this, "RECONNECT", "觸發 reTry attempt=$reconnectAttemptCount")
         val willRetry = try {
             rtmpCamera2.getStreamClient().reTry(0L, lastDisconnectReason)
         } catch (e: Exception) {
@@ -1670,6 +1896,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             override fun onAvailable(network: Network) {
                 if (!isWaitingToReconnect) return
                 runOnUiThread {
+                    DiagLogger.log(this@LiveActivity, "NET", "網路恢復 onAvailable，提前觸發重連")
                     reconnectJob?.cancel()
                     performReconnectAttempt()
                 }
@@ -1706,17 +1933,76 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // 定期回報實際送出碼率，開關只決定要不要「調整」，顯示一律更新
         runOnUiThread { updateBitrateStatusDisplay(bitrate) }
 
-        // v0.8.23：設定頁「直播中碼率自動調整」關閉時，全程固定用開播當下選的碼率，
-        // 完全不呼叫 BitrateAdapter（不管網路壅塞與否都不調整），壅塞提示也一併不顯示。
+        // 復線健康判定與「碼率自動調整」是兩件事；固定碼率模式也必須餵健康樣本。
+        val nowElapsedMs = SystemClock.elapsedRealtime()
+        val targetBitrate = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
+        if (!isBreakMode && reconnectRecoveryGate.observe(bitrate, targetBitrate)) {
+            reconnectRecoveryWatchdogJob?.cancel()
+            DiagLogger.log(this, "RECOVERY", "健康碼率連續達標 raw=$bitrate target=$targetBitrate")
+        }
+
+        // 固定碼率模式不餵 BitrateAdapter，但上面的連線健康判定仍照常執行。
         if (!StreamPrefs.isBitrateAutoAdjust(this)) return
 
         val hasCongestion = rtmpCamera2.getStreamClient().hasCongestion()
-        bitrateAdapter.adaptBitrate(bitrate, hasCongestion)
+        DiagLogger.log(this, "BITRATE", "raw=$bitrate hasCongestion=$hasCongestion")
+        when {
+            isBreakMode -> {
+                // v0.17.3：休息畫面會讓 raw 自然下降，不能把它當成網路不足餵給 adapter；
+                // raw/UI/hasCongestion/診斷照常，只略過調整。
+                DiagLogger.log(
+                    this, "BITRATE-BREAK",
+                    "休息中略過 adaptBitrate raw=$bitrate hasCongestion=$hasCongestion"
+                )
+            }
+            bitrateAdaptationWarmup.isActive(nowElapsedMs) -> {
+                DiagLogger.log(
+                    this, "BITRATE-WARMUP",
+                    "略過 adaptBitrate raw=$bitrate hasCongestion=$hasCongestion remaining=${bitrateAdaptationWarmup.remainingMs(nowElapsedMs)}ms"
+                )
+            }
+            reconnectRecoveryGate.isActive -> DiagLogger.log(
+                this, "RECOVERY", "等待健康碼率，略過 adaptBitrate raw=$bitrate target=$targetBitrate"
+            )
+            else -> bitrateAdapter.adaptBitrate(bitrate, hasCongestion)
+        }
         runOnUiThread {
             binding.tvBitrateCongestion.visibility = if (hasCongestion) View.VISIBLE else View.GONE
         }
     }
 
+    private fun startReconnectRecoveryWatchdog() {
+        reconnectRecoveryWatchdogJob?.cancel()
+        reconnectRecoveryWatchdogJob = lifecycleScope.launch {
+            delay(RECONNECT_RECOVERY_TIMEOUT_MS)
+            if (rtmpCamera2.isStreaming && reconnectRecoveryGate.isTimedOut(SystemClock.elapsedRealtime())) {
+                // 低碼率不等於 RTMP 已斷線；真正斷線交由 onConnectionFailed 的 reTry 流程。
+                reconnectRecoveryGate.clear()
+                DiagLogger.log(this@LiveActivity, "RECOVERY", "健康碼率逾時，不破壞編碼管線；等待 RTMP 斷線回呼")
+            }
+        }
+    }
+
+    private fun rebuildStreamPipelineForRecovery() {
+        val url = currentRtmpUrl ?: return
+        if (isStreamPipelineRebuilding) return
+        isStreamPipelineRebuilding = true
+        reconnectRecoveryGate.clear()
+        bitrateAdaptationWarmup.clear()
+        bitrateAdapter.reset()
+        DiagLogger.log(this, "RECOVERY", "健康碼率逾時，重建 RTMP pipeline（錄影保持）")
+        runCatching { if (rtmpCamera2.isStreaming) rtmpCamera2.stopStream() }
+        lifecycleScope.launch {
+            delay(RECONNECT_PIPELINE_RESTART_DELAY_MS)
+            val target = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this@LiveActivity))
+            bitrateAdapter.setMaxBitrate(target)
+            rtmpCamera2.setVideoBitrateOnFly(target)
+            isStreamPipelineRebuilding = false
+            DiagLogger.log(this@LiveActivity, "RECOVERY", "重新 startStream target=$target")
+            runCatching { rtmpCamera2.startStream(url) }
+                .onFailure { scheduleReconnect("pipeline restart failed: ${it.message}") }
+        }
+    }
     // ---------- v0.10.1：右上角電池溫度顯示＋左上角實際/設定碼率顯示 ----------
 
     /**
@@ -1745,25 +2031,120 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     }
 
     /**
-     * 實際/設定碼率顯示（直播中才顯示，見 [beginRtmpStreaming]/[stopLiveStream] 的顯示切換）：
-     * 達標（實際 ≥ 設定九成）白字、低於九成黃字、低於七成紅字——開著碼率自動調整時，
-     * 黃/紅字代表網路吃緊正在主動降畫質（正常運作的訊號）；關閉自動調整時代表網路送不動，
-     * 觀眾端即將卡頓。
+     * v0.17.0（第一階段第4/5項）：碼率警告狀態與 raw 數值拆開。
+     * - **raw 數值照常顯示**：文字永遠是本次回呼的真實瞬時碼率（不做平滑），達標比率仍以 raw 附註。
+     * - **警告狀態（文字顏色）改用 EWMA＋連續樣本判定**，不再被單筆瞬時值嚇到閃色：
+     *   - 連線建立前（[isConnectionEstablished]=false）＝「連線中」中性白字，暖機低碼率不當異常（第5項）。
+     *   - 有效樣本（直播中、非休息、actualBps>0）才更新 EWMA 與計數；離開休息後前
+     *     [BITRATE_RECOVERING_SAMPLES] 筆顯示「恢復中」青字（epoch 由 [exitBreakMode] 掛旗標），
+     *     之後才用 EWMA/target 比率判定白/黃/紅（第4項）。
+     *   - 非有效樣本（休息中、0 值）不更新 EWMA、維持中性白字。
+     * 進出休息都會呼叫 [resetBitrateWarningEpoch] 重設 epoch（見 enter/exitBreakMode）。
+     * 註：本函式只讀 raw 值、不碰 [bitrateAdapter] 與 hasCongestion 的真實壅塞判定與輸入。
      */
     private fun updateBitrateStatusDisplay(actualBps: Long) {
         val targetBps = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
         if (targetBps <= 0) return
-        val ratio = actualBps.toDouble() / targetBps
+
+        val isValidSample = isConnectionEstablished && !isBreakMode && actualBps > 0
+        val state: String = when {
+            !isConnectionEstablished -> "連線中"
+            !isValidSample -> "中性"      // 休息中或 0 值：不更新 EWMA，維持中性
+            else -> {
+                bitrateValidSampleCount++
+                bitrateEwmaBps = if (bitrateValidSampleCount == 1) {
+                    actualBps.toDouble()
+                } else {
+                    BITRATE_EWMA_ALPHA * actualBps + (1 - BITRATE_EWMA_ALPHA) * bitrateEwmaBps
+                }
+                if (bitrateShowRecoveringGrace && bitrateValidSampleCount <= BITRATE_RECOVERING_SAMPLES) {
+                    "恢復中"
+                } else {
+                    bitrateShowRecoveringGrace = false
+                    // v0.17.1（審查第4項）：EWMA 跨門檻得出瞬時判定，再經連續 N 筆遲滯才提交切色
+                    stabilizeWarningState(instantWarningState(bitrateEwmaBps / targetBps))
+                }
+            }
+        }
+
+        // v0.17.1（審查第2項）：raw 數值照常顯示；「連線中」「恢復中」如實顯示在 UI（附在碼率後），
+        // 達標/偏低/不足維持只以顏色表示（避免畫面過雜）。
+        val suffix = when (state) {
+            "連線中" -> getString(R.string.bitrate_state_connecting)
+            "恢復中" -> getString(R.string.bitrate_state_recovering)
+            else -> null
+        }
+        val baseText = getString(R.string.bitrate_status_format, actualBps / 1_000_000.0, targetBps / 1_000_000.0)
+        binding.tvBitrateStatus.text = if (suffix != null) {
+            getString(R.string.bitrate_status_with_state_format, baseText, suffix)
+        } else {
+            baseText
+        }
+
         binding.tvBitrateStatus.setTextColor(
-            when {
-                ratio >= BITRATE_OK_RATIO -> Color.WHITE
-                ratio >= BITRATE_LOW_RATIO -> TEMP_COLOR_COOLDOWN
-                else -> TEMP_COLOR_THROTTLED
+            when (state) {
+                "連線中", "中性", "達標" -> Color.WHITE
+                "恢復中" -> BITRATE_COLOR_RECOVERING
+                "偏低" -> TEMP_COLOR_COOLDOWN
+                else -> TEMP_COLOR_THROTTLED   // 不足
             }
         )
-        binding.tvBitrateStatus.text = getString(
-            R.string.bitrate_status_format, actualBps / 1_000_000.0, targetBps / 1_000_000.0
+
+        // 逐筆核對用：raw／EWMA／有效樣本序號／狀態／target（第4項驗收）
+        DiagLogger.log(
+            this, "BITRATE-UI",
+            "raw=$actualBps ewma=${bitrateEwmaBps.toLong()} validN=$bitrateValidSampleCount state=$state target=$targetBps"
         )
+    }
+
+    /** EWMA/target 比率的瞬時警告判定（尚未經遲滯）。 */
+    private fun instantWarningState(ratio: Double): String = when {
+        ratio >= BITRATE_OK_RATIO -> "達標"
+        ratio >= BITRATE_LOW_RATIO -> "偏低"
+        else -> "不足"
+    }
+
+    /**
+     * v0.17.1（第一階段審查第4項）：警告狀態連續樣本遲滯。第一筆有效判定立即提交；之後要切換到不同
+     * 狀態必須連續 [BITRATE_WARNING_STABLE_SAMPLES] 筆一致才提交，避免 EWMA 在 0.9／0.7 門檻附近抖動
+     * 反覆閃色。計數在進出休息/重連/收播（[resetBitrateWarningEpoch]）時一併清除。
+     */
+    private fun stabilizeWarningState(instant: String): String {
+        if (bitrateWarningState.isEmpty() || instant == bitrateWarningState) {
+            bitrateWarningState = instant
+            bitratePendingWarningState = ""
+            bitratePendingWarningCount = 0
+            return bitrateWarningState
+        }
+        if (instant == bitratePendingWarningState) {
+            bitratePendingWarningCount++
+        } else {
+            bitratePendingWarningState = instant
+            bitratePendingWarningCount = 1
+        }
+        if (bitratePendingWarningCount >= BITRATE_WARNING_STABLE_SAMPLES) {
+            bitrateWarningState = instant
+            bitratePendingWarningState = ""
+            bitratePendingWarningCount = 0
+        }
+        return bitrateWarningState
+    }
+
+    /**
+     * v0.17.0（第一階段第4項）：重設碼率警告 epoch。EWMA 與有效樣本計數歸零；`armRecovering=true`
+     * 時（僅 [exitBreakMode] 使用）武裝「恢復中」寬限，讓離開休息後前 [BITRATE_RECOVERING_SAMPLES]
+     * 筆有效樣本顯示「恢復中」。進入休息（[enterBreakMode]）、開播（[beginRtmpStreaming]）、連線建立
+     * （[onConnectionSuccess]）、斷線（[onDisconnect]）、重連（[scheduleReconnect]）、收播皆以 `false`
+     * 呼叫：只清 EWMA、不武裝寬限。
+     * v0.17.1（審查第4項）：一併清除警告狀態遲滯計數。
+     */
+    private fun resetBitrateWarningEpoch(armRecovering: Boolean) {
+        bitrateEwmaBps = 0.0
+        bitrateValidSampleCount = 0
+        bitrateShowRecoveringGrace = armRecovering
+        bitrateWarningState = ""
+        bitratePendingWarningState = ""
+        bitratePendingWarningCount = 0
     }
 
     // ---------- 左右固定計分按鈕列：分數 +1/+2/+3/-1（分數不可低於 0，v0.8.0 起改為
@@ -2400,8 +2781,15 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                 updateFocusLockButtonUi()
                 binding.focusIndicatorView.showLocked(viewX, viewY)
                 // v0.12.0：對焦收斂後才鎖 AE（見計畫書項目 2「現有收斂流程結尾加 AE_LOCK」），
-                // 焦點與亮度一起凍結
-                setAutoExposureLock(true)
+                // 焦點與亮度一起凍結。
+                // v0.17.0（第一階段第1項）：依實際是否鎖到曝光如實顯示——鎖成功「曝光與對焦已鎖」，
+                // 裝置不支援 AE 鎖定或反射失敗則「僅鎖焦」，不再讓使用者誤以為亮度已凍結。
+                val aeLocked = setAutoExposureLock(true)
+                Toast.makeText(
+                    this@LiveActivity,
+                    getString(if (aeLocked) R.string.focus_locked_with_ae else R.string.focus_locked_focus_only),
+                    Toast.LENGTH_SHORT
+                ).show()
             } else {
                 try {
                     rtmpCamera2.enableAutoFocus()
@@ -2418,22 +2806,38 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     //            失敗一律安靜退回「只鎖對焦」不動 AE，並只提示一次 ----------
 
     /**
-     * 裝置是否支援 AE 鎖定與 AE 測光區域，查一次（`CONTROL_AE_LOCK_AVAILABLE`／
-     * `CONTROL_MAX_REGIONS_AE`，需 `CONTROL_MAX_REGIONS_AE > 0` 才有測光區域可用）後
-     * 快取在 [aeLockSupported]（同一台裝置的相機硬體能力不會變）。`getCameraCharacteristics()`
-     * 是 [RtmpCamera2] 的公開 API，不需要反射；只有失敗（相機尚未開啟等）時視為不支援。
+     * v0.17.0（第一階段第1項）：裝置是否支援 **AE 鎖定**（`CONTROL_AE_LOCK_AVAILABLE`），查一次後
+     * 快取在 [aeLockSupported]。原本這裡把「AE 鎖定」與「AE 測光區域」兩個獨立能力綁在一起（要
+     * `maxAeRegions > 0` 才回 true），害只支援鎖定、不支援測光區域的裝置連曝光鎖都被跳過。現在拆開：
+     * 曝光鎖（[setAutoExposureLock]）只看這一項，測光區域跟隨（[syncAeRegionsToFocusPoint]）另看
+     * [isAeRegionSupported]。`getCameraCharacteristics()` 是公開 API，不需反射；失敗（相機尚未開啟等）視為不支援。
      */
     private fun isAeLockSupported(): Boolean {
         aeLockSupported?.let { return it }
         val supported = try {
             val characteristics = rtmpCamera2.cameraCharacteristics
-            val lockAvailable = characteristics?.get(CameraCharacteristics.CONTROL_AE_LOCK_AVAILABLE) ?: false
-            val maxAeRegions = characteristics?.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AE) ?: 0
-            lockAvailable && maxAeRegions > 0
+            characteristics?.get(CameraCharacteristics.CONTROL_AE_LOCK_AVAILABLE) ?: false
         } catch (e: Exception) {
             false
         }
         aeLockSupported = supported
+        return supported
+    }
+
+    /**
+     * v0.17.0（第一階段第1項）：裝置是否支援 **AE 測光區域**（`CONTROL_MAX_REGIONS_AE > 0`），查一次後
+     * 快取在 [aeRegionSupported]。只有「測光跟隨點擊處」（[syncAeRegionsToFocusPoint]）需要它；
+     * 曝光鎖本身不需要測光區域。
+     */
+    private fun isAeRegionSupported(): Boolean {
+        aeRegionSupported?.let { return it }
+        val supported = try {
+            val characteristics = rtmpCamera2.cameraCharacteristics
+            (characteristics?.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AE) ?: 0) > 0
+        } catch (e: Exception) {
+            false
+        }
+        aeRegionSupported = supported
         return supported
     }
 
@@ -2477,7 +2881,10 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * 一律安靜略過（呼叫 [warnAeSyncFailedOnce] 只提示一次），不影響既有對焦流程。
      */
     private fun syncAeRegionsToFocusPoint() {
-        if (!isAeLockSupported()) return
+        // v0.17.0（第一階段第1項）：測光跟隨需要「AE 測光區域」能力，改用 isAeRegionSupported()
+        // （不再借用綁死的 isAeLockSupported）——只支援鎖定不支援測光區域的裝置在此正確略過測光跟隨，
+        // 但曝光鎖（setAutoExposureLock）仍會生效。
+        if (!isAeRegionSupported()) return
         try {
             val builder = getCaptureRequestBuilderForAe() ?: return
             val afRegions = builder.get(CaptureRequest.CONTROL_AF_REGIONS)
@@ -2495,14 +2902,17 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * `disableAutoExposure()`（`AE_MODE_OFF` 陷阱，亮度會亂跳，已於函式庫原始碼查證，
      * 見類別頂端 KDoc）。裝置不支援或反射失敗一律安靜退回，只提示一次。
      */
-    private fun setAutoExposureLock(locked: Boolean) {
-        if (!isAeLockSupported()) return
-        try {
-            val builder = getCaptureRequestBuilderForAe() ?: return
+    private fun setAutoExposureLock(locked: Boolean): Boolean {
+        if (!isAeLockSupported()) return false
+        return try {
+            val builder = getCaptureRequestBuilderForAe() ?: return false
             builder.set(CaptureRequest.CONTROL_AE_LOCK, locked)
-            if (!applyAeCaptureRequest(builder)) warnAeSyncFailedOnce()
+            val applied = applyAeCaptureRequest(builder)
+            if (!applied) warnAeSyncFailedOnce()
+            applied
         } catch (e: Exception) {
             warnAeSyncFailedOnce()
+            false
         }
     }
 
@@ -2521,10 +2931,14 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> {
+                // v0.17.0（第一階段第3項）：記錄按鍵事件與 repeatCount（區分快速短按/稍長短按/持續長按），
+                // 供日後決定是否攔截 repeat。本階段禁止改變行為——照舊每個事件都 changeZoom。
+                DiagLogger.log(this, "ZOOM", "VOLUME_UP repeatCount=${event?.repeatCount ?: -1}")
                 changeZoom(ZOOM_STEP)
                 return true
             }
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                DiagLogger.log(this, "ZOOM", "VOLUME_DOWN repeatCount=${event?.repeatCount ?: -1}")
                 changeZoom(-ZOOM_STEP)
                 return true
             }
@@ -2533,18 +2947,26 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     }
 
     private fun changeZoom(delta: Float) {
-        if (!isCameraReadyForControl()) return
+        if (!isCameraReadyForControl()) {
+            DiagLogger.log(this, "ZOOM", "delta=$delta 相機未就緒，略過")
+            return
+        }
         try {
             val zoomRange = rtmpCamera2.zoomRange
+            val before = currentZoomLevel
             val newZoom = (currentZoomLevel + delta).coerceIn(zoomRange.lower, zoomRange.upper)
+            // v0.17.0（第一階段第3項）：記錄 zoom range／前後值／套用結果。本階段不改步距/比例（禁止擴張）。
             if (newZoom == currentZoomLevel) {
+                DiagLogger.log(this, "ZOOM", "range=[${zoomRange.lower},${zoomRange.upper}] before=$before delta=$delta 已達端點未變")
                 Toast.makeText(this, getString(R.string.zoom_limit_reached_message), Toast.LENGTH_SHORT).show()
                 return
             }
             rtmpCamera2.setZoom(newZoom)
             currentZoomLevel = newZoom
             binding.tvZoomValue.text = getString(R.string.zoom_value_format, currentZoomLevel)
+            DiagLogger.log(this, "ZOOM", "range=[${zoomRange.lower},${zoomRange.upper}] before=$before delta=$delta after=$newZoom 已套用")
         } catch (e: Exception) {
+            DiagLogger.log(this, "ZOOM", "delta=$delta 例外：${e.message}")
             Toast.makeText(
                 this, getString(R.string.zoom_adjust_failed_format, e.message ?: ""), Toast.LENGTH_SHORT
             ).show()
@@ -2852,6 +3274,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         if (isBreakMode) return
         if (streamWidthForOverlay <= 0 || streamHeightForOverlay <= 0) return
         isBreakMode = true
+        // v0.17.0（第一階段第4項）：進入休息重設碼率警告 epoch（不武裝「恢復中」寬限）
+        resetBitrateWarningEpoch(armRecovering = false)
+        DiagLogger.log(this, "BREAK", "進入休息，碼率警告 epoch 重設")
         // 1. 全螢幕休息畫面濾鏡疊到最上層（addFilter 走 filterQueue，執行緒安全，避開 stop() 的競態坑）
         breakScreenFilter.setImage(buildBreakScreenBitmap())
         breakScreenFilter.setScale(100f, 100f)
@@ -2878,6 +3303,25 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun exitBreakMode() {
         if (!isBreakMode) return
         isBreakMode = false
+        // v0.17.0（第一階段第4項）：離開休息重設 epoch 並武裝「恢復中」寬限——前 BITRATE_RECOVERING_SAMPLES
+        // 筆有效樣本顯示「恢復中」，避免恢復瞬間 I-frame burst 的碼率尖峰被誤判成警告。
+        resetBitrateWarningEpoch(armRecovering = true)
+        // v0.17.3：休息期間 adapter 已暫停；離開時建立乾淨起點、恢復使用者目標並重新暖機，
+        // 避免恢復畫面的暫態 raw／I-frame 波動再次觸發誤降。
+        if (rtmpCamera2.isStreaming && StreamPrefs.isBitrateAutoAdjust(this)) {
+            val targetBitrate = StreamPrefs.parseBitrate(StreamPrefs.getBitrate(this))
+            bitrateAdapter.reset()
+            bitrateAdapter.setMaxBitrate(targetBitrate)
+            rtmpCamera2.setVideoBitrateOnFly(targetBitrate)
+            bitrateAdaptationWarmup.start(SystemClock.elapsedRealtime())
+            reconnectRecoveryGate.start(SystemClock.elapsedRealtime())
+            startReconnectRecoveryWatchdog()
+            DiagLogger.log(
+                this, "BITRATE-BREAK",
+                "離開休息：adapter reset，恢復 target=$targetBitrate，暖機=${BITRATE_ADAPTATION_WARMUP_MS}ms"
+            )
+        }
+        DiagLogger.log(this, "BREAK", "離開休息，碼率警告 epoch 重設＋武裝恢復中寬限")
         // 1.+2. 恢復相機擷取＋關強制算圖（只有先前真的停成功才需要；順位2 停用時恆為 false，
         //    見 enterBreakMode 的 BREAK_STOP_CAMERA_ENABLED 註解）
         if (breakCameraStopped) {
@@ -3254,9 +3698,13 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.10.0：同步錄影備份——獨立解析度的固定碼率（YAGNI：不另開選項，見計畫書功能包①）
         const val RECORD_BITRATE_720P_BPS = 4000 * 1000
         const val RECORD_BITRATE_1080P_BPS = 8000 * 1000
-        // v0.10.4：2K/4K 選項（4K 約 9GB／小時，設定頁說明文字已載明散熱提醒）
+        const val RECORD_WIDTH = 1920
+        const val RECORD_HEIGHT = 1080
+        const val RECORD_FPS = 30
+        const val RECORD_BITRATE_BPS = 20000 * 1000
+        // v0.17.6：4K H.264 由 20 Mbps 提升至 50 Mbps（約 22.5GB／小時），改善高動態畫面壓縮模糊
         const val RECORD_BITRATE_2K_BPS = 12000 * 1000
-        const val RECORD_BITRATE_4K_BPS = 20000 * 1000
+        const val RECORD_BITRATE_4K_BPS = 50000 * 1000
         // 開播確認框的空間預估：以此小時數換算「需要多少可用空間才不轉紅字警告」
         const val RECORD_SPACE_WARNING_HOURS = 2L
         // tvLiveIndicator 錄影中的文字後綴（見 [updateLiveIndicatorRecSuffix]）
@@ -3271,6 +3719,19 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.10.1：實際/設定碼率的達標門檻（≥九成白字、九成~七成黃字、低於七成紅字）
         const val BITRATE_OK_RATIO = 0.9
         const val BITRATE_LOW_RATIO = 0.7
+        // v0.17.0（第一階段第4項）：碼率警告狀態的 EWMA 平滑係數與「恢復中」寬限樣本數。
+        // alpha 越大越跟隨瞬時值；0.3 兼顧反應與抗抖動。離開休息後前 2 筆有效樣本顯示「恢復中」。
+        const val BITRATE_EWMA_ALPHA = 0.3
+        const val BITRATE_RECOVERING_SAMPLES = 2
+        // v0.17.1（審查第4項）：警告狀態切換的連續樣本遲滯門檻——保守佔位 N=3，待實機直播資料校準
+        const val BITRATE_WARNING_STABLE_SAMPLES = 3
+        val BITRATE_COLOR_RECOVERING = Color.rgb(79, 195, 247)  // 青（恢復中／連線穩定前的中性提示）
+        // v0.17.2（Phase 2）：RTMP 連線成功後暫停餵入 BitrateAdapter 的時間；實機採證後可單點校準。
+        const val BITRATE_ADAPTATION_WARMUP_MS = 10_000L
+        const val RECONNECT_RECOVERY_TIMEOUT_MS = 20_000L
+        const val RECONNECT_RECOVERY_HEALTHY_RATIO = 0.7
+        const val RECONNECT_RECOVERY_HEALTHY_SAMPLES = 3
+        const val RECONNECT_PIPELINE_RESTART_DELAY_MS = 500L
 
         // v0.15.0：LINE 官方套件包名——精彩清單「分享LINE」直接指定開啟（見 shareHighlightsToLine）
         const val LINE_PACKAGE_NAME = "jp.naver.line.android"

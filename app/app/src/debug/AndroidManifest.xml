@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phase 0 spike 專用 manifest overlay：只在 debug build 合併進 APK，release 不含。
+     spike Activity 無 intent-filter，正式 UI 無入口，只能 adb 明確啟動：
+     adb shell am start -n com.hopengzhe.basketballliveyt/.spike.Phase0SpikeActivity -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name=".spike.Phase0SpikeActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@style/Theme.BasketballLiveYT" />
+    </application>
+
+</manifest>
