@@ -54,7 +54,6 @@ object StreamPrefs {
     private const val KEY_RECORD_RESOLUTION = "record_resolution"
     private const val KEY_RECORD_SAVE_MODE = "record_save_mode"
     private const val KEY_RECORD_TREE_URI = "record_tree_uri"
-    private const val KEY_RECORD_720P_EXPERIMENT = "record_720p_experiment"
 
     // 預設值需與 strings.xml 內對應 string-array 的項目文字完全一致，
     // 才能在設定頁還原上次選擇的 Spinner 選項。
@@ -73,7 +72,9 @@ object StreamPrefs {
     // v0.15.5：已移除功能殘留的死鍵——+3 特效（v0.14.1 拆）與公牛動畫開關（v0.11.x），
     // 現存程式碼已無任何讀寫，只剩舊裝置 SharedPreferences 內的殘值，啟動時清掉
     // v0.15.6：VBR 開關移除（實質只影響碼率顯示平滑，名不副實，Boss 拍板移除），鍵一併清掉
-    private val DEPRECATED_KEYS = listOf("home_plus3_celebration", "bull_anim_enabled", "vbr")
+    // v0.18.13：720p 錄影實驗移除（A/B 比較已完成，正式錄影只保留 1080p30/20Mbps），鍵一併清掉
+    private val DEPRECATED_KEYS =
+        listOf("home_plus3_celebration", "bull_anim_enabled", "vbr", "record_720p_experiment")
 
     fun purgeDeprecatedKeys(context: Context) {
         val p = prefs(context)
@@ -246,13 +247,6 @@ object StreamPrefs {
 
     /** 同步錄影備份開關，預設關（YAGNI：不影響現有使用者，需自行到設定頁開啟）。 */
     fun isRecordEnabled(context: Context): Boolean = prefs(context).getBoolean(KEY_RECORD_ENABLED, false)
-
-    fun isRecord720pExperimentEnabled(context: Context): Boolean =
-        prefs(context).getBoolean(KEY_RECORD_720P_EXPERIMENT, false)
-
-    fun saveRecord720pExperimentEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean(KEY_RECORD_720P_EXPERIMENT, enabled).apply()
-    }
 
     /** 錄影解析度：「與直播相同」共用編碼器，或獨立的 720p/1080p（畫質恆定，見類別頂端計畫書引用）。 */
     fun getRecordResolution(context: Context): String =

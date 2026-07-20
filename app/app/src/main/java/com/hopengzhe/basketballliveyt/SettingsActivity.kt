@@ -107,7 +107,6 @@ class SettingsActivity : AppCompatActivity() {
                 else -> "$line1\n$line2"
             }
             StreamPrefs.saveEventName(this, mergedEventName)
-            StreamPrefs.saveRecord720pExperimentEnabled(this, binding.switchRecord720pExperiment.isChecked)
             // v0.16.0：功能一——保存兩個標題模板與目前選用的模板（實際開播標題已由上面
             // StreamPrefs.save 的 streamTitle=etStreamTitle 存入，模板僅供切換帶入該欄）
             StreamPrefs.saveTitleTemplates(
@@ -154,7 +153,6 @@ class SettingsActivity : AppCompatActivity() {
         setSpinnerSelection(binding.spinnerBitrate, R.array.bitrate_options, StreamPrefs.getBitrate(this))
         // v0.10.0：同步錄影備份
         binding.switchRecordEnabled.isChecked = StreamPrefs.isRecordEnabled(this)
-        binding.switchRecord720pExperiment.isChecked = StreamPrefs.isRecord720pExperimentEnabled(this)
         setSpinnerSelection(
             binding.spinnerRecordResolution, R.array.record_resolution_options, StreamPrefs.getRecordResolution(this)
         )

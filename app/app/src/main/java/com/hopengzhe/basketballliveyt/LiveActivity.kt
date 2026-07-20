@@ -577,11 +577,6 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     // 呼叫端要自行在收尾時 close()
     private var openRecordFileDescriptor: ParcelFileDescriptor? = null
 
-    private val recordExperiment720p: Boolean get() = StreamPrefs.isRecord720pExperimentEnabled(this)
-    private val activeRecordWidth: Int get() = if (recordExperiment720p) RECORD_EXPERIMENT_WIDTH else RECORD_DEFAULT_WIDTH
-    private val activeRecordHeight: Int get() = if (recordExperiment720p) RECORD_EXPERIMENT_HEIGHT else RECORD_DEFAULT_HEIGHT
-    private val activeRecordBitrate: Int get() = if (recordExperiment720p) RECORD_EXPERIMENT_BITRATE_BPS else RECORD_DEFAULT_BITRATE_BPS
-
     // v0.13.0：功能 A 精彩時刻標記——見類別頂端 KDoc、HighlightMarker.kt
     private val highlightMarkers = mutableListOf<HighlightMarker>()
     private var highlightSessionTimestamp: String = HighlightStore.newSessionTimestamp()
@@ -942,14 +937,13 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         val recordingEnabled = StreamPrefs.isRecordEnabled(this)
         val prepared = try {
             if (recordingEnabled) {
-                val captureSize = android.util.Size(maxOf(width, activeRecordWidth), maxOf(height, activeRecordHeight))
+                val captureSize = android.util.Size(maxOf(width, RECORD_DEFAULT_WIDTH), maxOf(height, RECORD_DEFAULT_HEIGHT))
                 val supportedFps = runCatching {
                     rtmpCamera2.getSupportedFps(captureSize, rtmpCamera2.cameraFacing)
                 }.getOrElse { emptyList() }
                 DiagLogger.log(
                     this, "RECORD-CONFIG",
-                    "mode=${if (recordExperiment720p) "720p-experiment" else "1080p-default"} " +
-                        "fixed=${activeRecordWidth}x${activeRecordHeight} fps=$RECORD_FPS bitrate=$activeRecordBitrate " +
+                    "fixed=${RECORD_DEFAULT_WIDTH}x${RECORD_DEFAULT_HEIGHT} fps=$RECORD_FPS bitrate=$RECORD_DEFAULT_BITRATE_BPS " +
                         "codec=H264 liveFps=$fps capture=$captureSize supportedFps=$supportedFps"
                 )
                 val videoPrepared = rtmpCamera2.prepareVideo(width, height, fps, bitrate, 0)
@@ -1031,7 +1025,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         val recordEncoder = baseClass.getDeclaredField("videoEncoderRecord").apply { isAccessible = true }
             .get(rtmpCamera2) as com.pedro.encoder.video.VideoEncoder
         val prepared = recordEncoder.prepareVideoEncoder(
-            activeRecordWidth, activeRecordHeight, RECORD_FPS, activeRecordBitrate,
+            RECORD_DEFAULT_WIDTH, RECORD_DEFAULT_HEIGHT, RECORD_FPS, RECORD_DEFAULT_BITRATE_BPS,
             0, 2, com.pedro.encoder.video.FormatVideoEncoder.SURFACE
         )
         if (!prepared) return false
@@ -1070,7 +1064,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             val map = characteristics.get(
                 android.hardware.camera2.CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP
             ) ?: error("找不到相機串流設定")
-            val size = android.util.Size(activeRecordWidth, activeRecordHeight)
+            val size = android.util.Size(RECORD_DEFAULT_WIDTH, RECORD_DEFAULT_HEIGHT)
             val ranges = map.getHighSpeedVideoFpsRangesFor(size).toList()
             // 此 OPPO 的 1080p 高速表只提供可變 30~120 與固定 120；可變範圍實測會掉到低幀率，
             // 因此使用固定高速範圍，再由 GL 將相機輸入限制成錄影所需的 60 FPS。
@@ -1222,7 +1216,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
     /** 依目前錄影解析度設定換算每小時檔案大小（含音訊碼率），並讀取裝置目前可用空間。 */
     private fun calculateRecordSpaceEstimate(): RecordSpaceEstimate {
-        val videoBitrateBps = activeRecordBitrate
+        val videoBitrateBps = RECORD_DEFAULT_BITRATE_BPS
         val bytesPerHour = (videoBitrateBps + AUDIO_BITRATE).toLong() * 3600L / 8L
         val availableBytes = try {
             StatFs(Environment.getExternalStorageDirectory().path).availableBytes
@@ -3804,9 +3798,6 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         const val RECORD_DEFAULT_HEIGHT = 1080
         const val RECORD_FPS = 30
         const val RECORD_DEFAULT_BITRATE_BPS = 20000 * 1000
-        const val RECORD_EXPERIMENT_WIDTH = 1280
-        const val RECORD_EXPERIMENT_HEIGHT = 720
-        const val RECORD_EXPERIMENT_BITRATE_BPS = 6000 * 1000
         // v0.17.6：4K H.264 由 20 Mbps 提升至 50 Mbps（約 22.5GB／小時），改善高動態畫面壓縮模糊
         const val RECORD_BITRATE_2K_BPS = 12000 * 1000
         const val RECORD_BITRATE_4K_BPS = 50000 * 1000

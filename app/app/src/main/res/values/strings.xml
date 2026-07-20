@@ -246,8 +246,6 @@
     <string name="settings_record_resolution_note">固定使用 1920×1080、30 FPS、H.264、20 Mbps 錄影，約 9.1 GB／小時；此設定不受直播解析度、直播 FPS 或網路碼率調整影響。</string>
     <string name="settings_record_save_mode_label">錄影存放位置（固定）</string>
     <string name="settings_record_save_mode_note">固定儲存到手機內部儲存空間的 Downloads 資料夾。</string>
-    <string name="settings_record_720p_experiment_label">實驗：720p 穩定畫質模式</string>
-    <string name="settings_record_720p_experiment_note">開啟後改用 1280×720／30 fps／6 Mbps，供 CameraFi 畫質與幀率 A/B 比較；正式預設仍為 1080p30。</string>
     <string name="settings_record_folder_none">尚未選擇資料夾</string>
     <string name="settings_record_folder_current_format">目前資料夾：%1$s</string>
     <string name="settings_record_folder_cancelled_use_gallery_toast">已取消選擇資料夾，改用相簿</string>
