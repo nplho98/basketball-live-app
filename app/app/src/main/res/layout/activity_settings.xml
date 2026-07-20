@@ -403,6 +403,23 @@
             android:layout_marginTop="4dp"
             android:layout_marginBottom="20dp" />
 
+        <Switch
+            android:id="@+id/switchRecord720pExperiment"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_record_720p_experiment_label"
+            android:textColor="@color/white"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_record_720p_experiment_note"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="20dp" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
