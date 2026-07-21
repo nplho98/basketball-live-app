@@ -30,7 +30,7 @@
     <string name="exposure_label">曝光</string>
     <string name="focus_lock_button">定焦鎖定</string>
     <string name="focus_unlock_button">解除定焦</string>
-    <string name="settings_entry_button">設定</string>
+    <string name="settings_entry_button">系統設定</string>
     <string name="settings_locked_while_live_message">直播中無法進入設定，請先收播</string>
 
     <!-- v0.5.0：相機控制真實生效（曝光補償／定焦鎖定／音量鍵變焦）提示訊息 -->
@@ -73,11 +73,11 @@
     <string name="share_link_not_ready_message">尚未開播，開播後才有直播連結可分享</string>
 
     <!-- 左側欄：分數清零 -->
-    <string name="reset_scores_button">分數清零\n犯規清零</string>
+    <string name="reset_scores_button">分數清零\n犯規清零\n節數清零</string>
     <string name="reset_scores_confirm_title">分數清零</string>
-    <string name="reset_scores_confirm_message">確定要把兩隊分數與犯規都歸零嗎？</string>
+    <string name="reset_scores_confirm_message">確定要把兩隊分數、犯規與節數都歸零嗎？</string>
     <string name="reset_scores_confirm_ok">清零</string>
-    <string name="reset_scores_done_toast">兩隊分數與犯規已清零</string>
+    <string name="reset_scores_done_toast">兩隊分數、犯規與節數已清零</string>
 
     <!-- 左側欄：關閉軟體 -->
     <string name="close_app_button">關閉軟體</string>

@@ -2381,6 +2381,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     /**
      * v0.6.0：清零範圍擴大——按下「是」後兩隊分數與犯規次數一起歸零，
      * 燒入計分板的 4 格犯規燈號同步變回白／未點亮（見 [refreshScoreboardOverlay]）。
+     * v0.18.14：同步歸零節數（回第 1 節）與各節結算分數，跟 [resetScoreboardForNewGame] 範圍一致。
      */
     private fun setupResetScoresButton() {
         binding.btnResetScores.setOnClickListener {
@@ -2392,6 +2393,10 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                     scoreAway = 0
                     foulHome = 0
                     foulAway = 0
+                    period = 1
+                    quarterScoresHome = IntArray(StreamPrefs.QUARTER_COUNT) { -1 }
+                    quarterScoresAway = IntArray(StreamPrefs.QUARTER_COUNT) { -1 }
+                    StreamPrefs.clearQuarterScores(this)
                     refreshScoreboardOverlay()
                     Toast.makeText(this, getString(R.string.reset_scores_done_toast), Toast.LENGTH_SHORT).show()
                 }
