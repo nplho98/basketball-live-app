@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">籃球直播</string>
 
@@ -52,6 +52,8 @@
     <string name="team_home_default">主隊</string>
     <string name="team_away_default">客隊</string>
     <string name="period_format">第 %1$d 節</string>
+    <!-- v0.18.15：第 5 節起改印延長賽（第5節＝OT1、第6節＝OT2、第7節＝OT3，上限第 7 節） -->
+    <string name="period_overtime_format">OT%1$d</string>
 
     <!-- 隊名編輯對話框 -->
     <string name="edit_team_home_name_title">修改主隊隊名</string>
@@ -63,6 +65,12 @@
     <!-- 頂部操作列（犯規／節數） -->
     <string name="foul_home_minus_button">主隊犯規 −</string>
     <string name="foul_home_plus_button">主隊犯規 ＋</string>
+    <!-- v0.18.16：金鑰欄位填完整 rtmp(s) 網址時（FB／其他平台）不走 YouTube API -->
+    <string name="live_custom_rtmp_url_toast">使用自訂推流網址開播（非 YouTube 帳號模式）</string>
+    <!-- v0.18.16：−1／節數 − 長按歸零的提示 -->
+    <string name="score_reset_toast">%1$s 分數已歸零</string>
+    <string name="period_reset_toast">節數已歸零（第 1 節）</string>
+    <string name="reset_blocked_while_live_toast">直播中不能歸零，請先收播</string>
     <string name="period_minus_button">節數 −</string>
     <string name="period_plus_button">節數 ＋</string>
     <string name="foul_away_minus_button">客隊犯規 −</string>
@@ -71,6 +79,13 @@
     <!-- 左側欄：分享 -->
     <string name="share_button">分享直播</string>
     <string name="share_link_not_ready_message">尚未開播，開播後才有直播連結可分享</string>
+
+    <!-- v0.18.27：牛測試鈕（驗收用） -->
+    <string name="bull_toggle_button">左上牛 開/關</string>
+    <string name="bull_run_button">跑動牛 播一次</string>
+    <string name="bull_run_missing_toast">跑動牛圖檔載入失敗</string>
+    <string name="bull_toggle_toast_on">左上牛：顯示</string>
+    <string name="bull_toggle_toast_off">左上牛：隱藏</string>
 
     <!-- 左側欄：分數清零 -->
     <string name="reset_scores_button">分數清零\n犯規清零\n節數清零</string>
@@ -164,8 +179,12 @@
     <string name="expand_right_panel_desc">展開右側欄</string>
 
     <!-- v0.13.0：功能 A 精彩時刻標記 -->
-    <string name="highlight_mark_button">⭐標記</string>
-    <string name="highlight_marked_toast">已標記</string>
+    <!-- v0.18.15：標記改由主隊加分自動產生，這顆鈕改成往回刪最後一筆 -->
+    <string name="highlight_mark_button">移除標記</string>
+    <string name="highlight_marked_toast">已標記 %1$s</string>
+    <string name="highlight_score_label_format">%1$sN號：%2$d分</string>
+    <string name="highlight_undo_toast">已移除 %1$s</string>
+    <string name="highlight_undo_empty_toast">沒有標記可移除</string>
     <string name="highlight_list_dialog_title">精彩清單</string>
     <string name="highlight_list_empty">本場尚無標記</string>
     <string name="highlight_adjust_minus5">−5秒</string>
@@ -177,7 +196,6 @@
     <!-- v0.15.2：章節文字固定首行（YouTube 規定章節第一行必須 00:00） -->
     <string name="highlight_chapter_opening_line">00:00 開場</string>
     <string name="highlight_close_button">關閉</string>
-    <string name="highlight_only_while_live_toast">請先開播才能使用標記</string>
 
     <!-- v0.15.0：GL 渲染錯誤已被回呼接住（沒有閃退），一場只提示一次 -->
     <string name="render_error_skipped_toast">畫面渲染出現異常已自動略過，直播持續中（已寫入記錄）</string>
@@ -214,9 +232,37 @@
     <string name="settings_event_name_label">賽事名稱（燒入計分板左側）</string>
     <string name="settings_event_name_line1_hint">第一行（最多12字，留空則整塊不顯示）</string>
     <string name="settings_event_name_line2_hint">第二行（最多12字，可留空）</string>
-    <string name="settings_stream_key_label">串流金鑰（測試用）</string>
-    <string name="settings_stream_key_hint">貼上 YouTube 直播的串流金鑰</string>
-    <string name="settings_stream_key_note">開發測試入口：正式版將改為帳號登入自動取得，不需手動輸入</string>
+    <string name="settings_stream_key_label">YouTube 串流金鑰</string>
+    <string name="settings_stream_key_hint">貼上 YouTube 串流金鑰（登入帳號則免填）</string>
+    <string name="settings_stream_key_note">三個平台各存各的金鑰，換平台不用重貼</string>
+    <!-- v0.18.17：FB／自訂各自獨立的金鑰欄 -->
+    <string name="settings_stream_key_facebook_label">Facebook 串流金鑰</string>
+    <string name="settings_stream_key_facebook_hint">貼上 FB 給的串流金鑰（FB-… 開頭，網址自動補）</string>
+    <!-- v0.18.19：FB 伺服器網址可自填（不同帳號／地區可能不同），留空＝官方標準網址 -->
+    <string name="settings_facebook_server_url_label">Facebook 伺服器網址</string>
+    <string name="settings_facebook_server_url_hint">貼上你自己 FB 直播頁顯示的伺服器網址</string>
+    <string name="settings_stream_key_custom_label">自訂推流網址</string>
+    <string name="settings_stream_key_custom_hint">貼上完整 rtmp:// 或 rtmps:// 網址（含金鑰）</string>
+
+    <!-- v0.18.23：設定頁最上方的全功能使用教學（可收合，預設收起） -->
+    <string name="settings_guide_header_collapsed">▶　使用教學說明（點一下展開）</string>
+    <string name="settings_guide_header_expanded">▼　使用教學說明（點一下收起）</string>
+    <!-- v0.18.26：設定頁的隊名欄（與點畫面隊名編輯同一份設定） -->
+    <string name="settings_team_names_label">主隊／客隊名稱</string>
+    <string name="settings_team_home_hint">主隊名稱（最多 4 字，留空用預設）</string>
+    <string name="settings_team_away_hint">客隊名稱（最多 4 字，留空用預設）</string>
+    <string name="settings_team_names_note">存檔後回直播畫面即帶入計分板；也可直接點畫面下方的隊名修改</string>
+    <string name="settings_guide_body"><![CDATA[<b>直播平台</b><br/>&#8195;•&#160;<b>YouTube</b>：登入 Google 帳號自動建立直播，可用「分享直播」傳觀看網址<br/>&#8195;•&#160;<b>Facebook</b>：先到 FB 建立直播（串流軟體模式），把該頁的「伺服器網址」「串流金鑰」分別填到本頁兩格<br/>&#8195;•&#160;<b>自訂</b>：整條 rtmp:// 或 rtmps:// 網址（含金鑰）貼進對應欄位，可推 Twitch 等<br/>&#8195;•&#160;三個平台的金鑰各自保存，換平台不用重貼<br/>&#8195;•&#160;FB／自訂沒有觀看網址可分享，收播請自行到該平台結束直播<br/>&#8195;•&#160;金鑰從網頁複製時，注意尾巴不要夾帶多餘符號<br/><br/><b>計分</b><br/>&#8195;•&#160;左下＝主隊、右下＝客隊，各有加減分按鈕<br/>&#8195;•&#160;長按 −1＝該隊分數歸零<br/>&#8195;•&#160;長按「節數 −」＝節數回第 1 節<br/>&#8195;•&#160;以上兩個長按<b>直播中禁用</b>，需先收播<br/>&#8195;•&#160;點畫面下方的隊名可直接改隊名<br/>&#8195;•&#160;左側「分數清零／犯規清零／節數清零」一次全部歸零<br/><br/><b>節數與延長賽</b><br/>&#8195;•&#160;第 1～4 節顯示「第 N 節」<br/>&#8195;•&#160;第 5～7 節顯示 OT1／OT2／OT3，最多到第 7 節<br/>&#8195;•&#160;犯規每隊最多 4 格燈號<br/><br/><b>精彩標記</b><br/>&#8195;•&#160;主隊按 +1／+2／+3 自動記一筆「主隊名 N 號：X 分」（僅直播中）<br/>&#8195;•&#160;右下「移除標記」每按一次刪掉最近加入的一筆<br/>&#8195;•&#160;「標記回推秒數」＝標記時間往前推幾秒，抓得到進球前動作<br/>&#8195;•&#160;收播後自動跳清單：±5 秒微調／刪除／複製章節格式／分享 LINE<br/><br/><b>休息畫面</b><br/>&#8195;•&#160;右下「休息畫面」切換黑底計分表，直播不中斷、相機暫停降溫<br/>&#8195;•&#160;再按一次（顯示「返回直播」）回到比賽畫面<br/>&#8195;•&#160;休息中分數／節數變動會即時反映在計分表<br/><br/><b>畫質與網路</b><br/>&#8195;•&#160;解析度／FPS／碼率在本頁設定，開播時套用<br/>&#8195;•&#160;「一鍵測速」實測上傳速度並建議規格<br/>&#8195;•&#160;「碼率自動調整」開＝塞車時自動降碼率保住連線；關＝固定送設定值<br/>&#8195;•&#160;畫面上「固定 X Mbps｜送出 Y Mbps」，靜止畫面送出值下降屬正常<br/>&#8195;•&#160;錄影固定 1080p30／20 Mbps，與直播互不影響，存到手機 Downloads<br/><br/><b>畫面控制</b><br/>&#8195;•&#160;上／左／右三個面板都可收合，收合後點螢幕邊緣把手展開<br/>&#8195;•&#160;右側可調曝光、定焦鎖定；畫面雙指縮放變焦<br/>&#8195;•&#160;機身過熱時右上角出現溫度警示，可降碼率或改用休息畫面降溫]]></string>
+
+    <!-- v0.18.16：直播平台選擇（見 StreamPrefs.PLATFORM_*／LiveActivity.resolveCustomRtmpUrl） -->
+    <string name="settings_live_platform_label">直播平台</string>
+    <string name="settings_live_platform_note">Facebook／自訂只用串流金鑰推流，不會自動建立直播，也拿不到觀看網址（分享鈕無效），收播請自行到該平台結束直播</string>
+    <string name="live_platform_missing_key_message">請先到系統設定填入 %1$s 的伺服器網址與串流金鑰</string>
+    <string-array name="live_platform_options">
+        <item>YouTube（帳號模式）</item>
+        <item>Facebook（網址＋金鑰）</item>
+        <item>自訂推流網址</item>
+    </string-array>
     <string name="settings_privacy_label">隱私設定</string>
     <string name="settings_resolution_label">解析度</string>
     <string name="settings_fps_label">影格率 (fps)</string>
@@ -252,7 +298,7 @@
     <string name="settings_record_folder_cancelled_keep_previous_toast">已取消選擇資料夾，沿用先前選擇</string>
 
     <!-- v0.13.0：功能 A 精彩時刻標記——設定頁欄位 -->
-    <string name="settings_highlight_rebound_seconds_label">標記回推秒數（⭐鈕記錄「目前時間－此秒數」）</string>
+    <string name="settings_highlight_rebound_seconds_label">標記回推秒數（主隊加分記錄「目前時間－此秒數」）</string>
 
     <string-array name="privacy_options">
         <item>公開</item>

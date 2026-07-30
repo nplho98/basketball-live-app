@@ -27,4 +27,7 @@
     <color name="surface_dark">#FF121212</color>
     <color name="surface_light">#FFF5F5F5</color>
     <color name="text_secondary">#FFB0B0B0</color>
+    <!-- v0.18.20：設定頁區塊標題（比說明小字亮，黑底上分得出層次） -->
+    <color name="text_label">#FFEDEDED</color>
+    <color name="settings_divider">#40FFFFFF</color>
 </resources>

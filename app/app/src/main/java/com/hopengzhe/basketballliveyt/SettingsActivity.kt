@@ -67,6 +67,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.root.clearAllButtonTints()
 
         loadSavedSettings()
+        setupGuide()
         refreshAccountStatus()
         setupNetworkDetection()
         setupRecordSection()
@@ -115,6 +116,24 @@ class SettingsActivity : AppCompatActivity() {
                 binding.etTitleTemplate2.text.toString(),
                 if (binding.radioTitleTemplate2.isChecked) 2 else 1
             )
+            // v0.18.26：隊名（與畫面上點隊名編輯共用同一份設定，留空＝用預設「主隊／客隊」）
+            StreamPrefs.saveTeamNames(
+                this,
+                binding.etTeamHomeName.text.toString().trim(),
+                binding.etTeamAwayName.text.toString().trim()
+            )
+            // v0.18.17：FB／自訂各自的金鑰（YouTube 那格仍由上面 StreamPrefs.save 的 streamKey 存）
+            StreamPrefs.savePlatformStreamKeys(
+                this,
+                binding.etStreamKeyFacebook.text.toString().trim(),
+                binding.etFacebookServerUrl.text.toString().trim(),
+                binding.etStreamKeyCustom.text.toString().trim()
+            )
+            // v0.18.16：直播平台（YouTube 帳號模式／Facebook 貼金鑰／自訂推流網址）
+            StreamPrefs.saveLivePlatform(
+                this,
+                binding.spinnerLivePlatform.selectedItem?.toString() ?: StreamPrefs.PLATFORM_YOUTUBE
+            )
             // v0.13.0：功能 A 精彩時刻標記——標記回推秒數
             StreamPrefs.saveHighlightReboundSeconds(
                 this,
@@ -127,6 +146,21 @@ class SettingsActivity : AppCompatActivity() {
                 Toast.LENGTH_SHORT
             ).show()
             finish()
+        }
+    }
+
+    /** v0.18.23：全功能使用教學——標題點一下展開／收起，預設收起，不佔設定頁版面。 */
+    private fun setupGuide() {
+        // v0.18.24：說明本文用 HTML（粗體小節標題＋縮排條列），純文字擠成一團看不出層次
+        binding.tvGuideBody.text = androidx.core.text.HtmlCompat.fromHtml(
+            getString(R.string.settings_guide_body), androidx.core.text.HtmlCompat.FROM_HTML_MODE_COMPACT
+        )
+        binding.tvGuideHeader.setOnClickListener {
+            val show = binding.tvGuideBody.visibility != View.VISIBLE
+            binding.tvGuideBody.visibility = if (show) View.VISIBLE else View.GONE
+            binding.tvGuideHeader.setText(
+                if (show) R.string.settings_guide_header_expanded else R.string.settings_guide_header_collapsed
+            )
         }
     }
 
@@ -146,6 +180,14 @@ class SettingsActivity : AppCompatActivity() {
         binding.etEventNameLine1.setText(eventNameLines.getOrElse(0) { "" })
         binding.etEventNameLine2.setText(eventNameLines.getOrElse(1) { "" })
         binding.etStreamKey.setText(StreamPrefs.getStreamKey(this))
+        binding.etTeamHomeName.setText(StreamPrefs.getTeamHomeName(this))
+        binding.etTeamAwayName.setText(StreamPrefs.getTeamAwayName(this))
+        binding.etStreamKeyFacebook.setText(StreamPrefs.getFacebookStreamKey(this))
+        binding.etFacebookServerUrl.setText(StreamPrefs.getFacebookServerUrl(this))
+        binding.etStreamKeyCustom.setText(StreamPrefs.getCustomStreamUrl(this))
+        setSpinnerSelection(
+            binding.spinnerLivePlatform, R.array.live_platform_options, StreamPrefs.getLivePlatform(this)
+        )
         binding.switchBitrateAutoAdjust.isChecked = StreamPrefs.isBitrateAutoAdjust(this)
         setSpinnerSelection(binding.spinnerPrivacy, R.array.privacy_options, StreamPrefs.getPrivacy(this))
         setSpinnerSelection(binding.spinnerResolution, R.array.resolution_options, StreamPrefs.getResolution(this))

@@ -18,14 +18,18 @@ data class HighlightMarker(
     val timestampMs: Long,
     val period: Int,
     val scoreHome: Int,
-    val scoreAway: Int
+    val scoreAway: Int,
+    /** v0.18.15：主隊加分自動標記的說明文字（例「信義N號：2分」）；空字串＝舊檔，退回節數比分格式。 */
+    val label: String = ""
 ) {
-    /** 顯示／複製章節格式共用：`mm:ss 第N節 主X-客Y`（見計畫書功能 A 清單顯示格式）。 */
+    /** 顯示／複製章節格式共用：`mm:ss 信義N號：2分`；無說明文字時退回舊格式 `mm:ss 第N節 主X-客Y`。 */
     fun toDisplayLine(): String {
         val totalSeconds = (timestampMs / 1000L).coerceAtLeast(0L)
         val mm = totalSeconds / 60
         val ss = totalSeconds % 60
-        return String.format(Locale.TAIWAN, "%02d:%02d 第%d節 主%d-客%d", mm, ss, period, scoreHome, scoreAway)
+        val time = String.format(Locale.TAIWAN, "%02d:%02d", mm, ss)
+        if (label.isNotEmpty()) return "$time $label"
+        return String.format(Locale.TAIWAN, "%s 第%d節 主%d-客%d", time, period, scoreHome, scoreAway)
     }
 
     fun toJson(): JSONObject = JSONObject().apply {
@@ -33,6 +37,7 @@ data class HighlightMarker(
         put("period", period)
         put("scoreHome", scoreHome)
         put("scoreAway", scoreAway)
+        put("label", label)
     }
 
     companion object {
@@ -40,7 +45,8 @@ data class HighlightMarker(
             timestampMs = json.optLong("timestampMs", 0L),
             period = json.optInt("period", 1),
             scoreHome = json.optInt("scoreHome", 0),
-            scoreAway = json.optInt("scoreAway", 0)
+            scoreAway = json.optInt("scoreAway", 0),
+            label = json.optString("label", "")
         )
     }
 }

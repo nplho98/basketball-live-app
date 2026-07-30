@@ -1,4 +1,4 @@
-package com.hopengzhe.basketballliveyt
+﻿package com.hopengzhe.basketballliveyt
 
 import android.Manifest
 import android.content.BroadcastReceiver
@@ -288,7 +288,8 @@ import java.util.Locale
  *      去算出誤導性的建議規格。
  * - v0.13.0：三項新功能（計畫書 `計畫書_bug修復與標記休息輪播遙控_2026-07-16.md` 第二波），皆採
  *   「UI 空殼先行」原則，核心引擎先做最簡可動版——
- *   1. 精彩時刻標記：⭐鈕（[setupHighlightMarkButton]，左側欄）按下記「目前直播經過時間（以
+ *   1. 精彩時刻標記（v0.18.15 起改由主隊 +1/+2/+3 自動記，見 [changeScoreHome]／[addHighlightMarker]，
+ *      原⭐鈕改成「移除標記」[setupHighlightMarkButton]）：記「目前直播經過時間（以
  *      [liveStartElapsedMs] 為基準）－設定頁『標記回推秒數』」＋當下節數/比分（[HighlightMarker]）；
  *      存 JSON（[HighlightStore]，APP 外部檔案區 `highlights/`，檔名帶場次時間戳，收播不清除）；
  *      收播流程結束跳「精彩清單」對話框（[showHighlightListDialog]，程式化建構列表比照
@@ -531,6 +532,26 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private var streamWidthForOverlay = 0
     private var streamHeightForOverlay = 0
 
+    // v0.18.15：計分板左上角趴著的 Q 版牛（去背 PNG，Boss 給的參考圖）——解碼一次重複用；
+    // 解碼失敗（缺圖／記憶體不足）就當作沒有牛，計分板照常畫，不影響直播。
+    private val scoreboardBullBitmap: Bitmap? by lazy {
+        BitmapFactory.decodeResource(resources, R.drawable.scoreboard_bull)
+    }
+
+    // v0.18.27：左上靜態牛可開關（測試鈕），關掉時 Bitmap 不長高、計分板回到沒有牛的原樣
+    private var showScoreboardBull = true
+
+    // v0.18.27：八格跑步循環——牛從計分板左緣跑到客隊隊名上方。progress −1＝沒在跑。
+    private val bullRunFrames: List<Bitmap> by lazy {
+        listOf(
+            R.drawable.bull_run_01, R.drawable.bull_run_02, R.drawable.bull_run_03, R.drawable.bull_run_04,
+            R.drawable.bull_run_05, R.drawable.bull_run_06, R.drawable.bull_run_07, R.drawable.bull_run_08
+        ).mapNotNull { BitmapFactory.decodeResource(resources, it) }
+    }
+    private var bullRunProgress = -1f
+    private var bullRunFrameIndex = 0
+    private val bullRunHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
     // v0.14.0：工作2——開播按鈕過渡期（按下開播確認～onConnectionSuccess／建立失敗退回之間），
     // 控制 btnLiveToggle 的灰色不可按狀態（見 setLiveButtonPending/setLiveUiState）。UX 功能，
     // v0.14.1 移除 +3 特效後仍保留（原本工作3 治標「此期間 +3 不觸發動畫」的用途已隨特效移除）。
@@ -585,8 +606,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
     // v0.16.0：功能三——休息畫面四節計分表。各節已結算分數（-1＝該節尚未結算），
     // 切節數當下結算（見 changePeriod），StreamPrefs 持久化防閃退／重開恢復。
-    private var quarterScoresHome = IntArray(StreamPrefs.QUARTER_COUNT) { -1 }
-    private var quarterScoresAway = IntArray(StreamPrefs.QUARTER_COUNT) { -1 }
+    private var quarterScoresHome = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
+    private var quarterScoresAway = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
     // 休息畫面狀態：是否休息中、全螢幕休息畫面濾鏡（做法同計分板 overlay，見 buildBreakScreenBitmap）
     private var isBreakMode = false
     private val breakScreenFilter = ImageObjectFilterRender()
@@ -816,6 +837,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // 設定頁只有在未直播時才能進入，回到本畫面時重新讀取賽事名稱，
         // 確保剛在設定頁存的賽事名稱能立即反映在燒入計分板上。
         eventName = StreamPrefs.getEventName(this)
+        // v0.18.26：隊名也能在設定頁改（原本只能點畫面上的隊名），回到本畫面同樣立即反映
+        teamHomeName = StreamPrefs.getTeamHomeName(this).ifEmpty { getString(R.string.team_home_default) }
+        teamAwayName = StreamPrefs.getTeamAwayName(this).ifEmpty { getString(R.string.team_away_default) }
+        binding.tvTeamHomeName.text = teamHomeName
+        binding.tvTeamAwayName.text = teamAwayName
         if (hasCameraPermissions && !rtmpCamera2.isStreaming && !rtmpCamera2.isOnPreview) {
             lifecycleScope.launch { applyStreamSettingsAndStartPreview() }
         } else {
@@ -931,7 +957,16 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         rtmpCamera2.getStreamClient().setBitrateExponentialFactor(0.5f)
         // v0.17.4：斷網復線改用 Java socket。實機證據顯示預設 Ktor CIO socket 在網路恢復後
         // 反覆發生讀寫 SocketTimeoutException；只替換 socket 實作，保留既有 reTry 與暖機狀態機。
-        rtmpCamera2.getStreamClient().setSocketType(SocketType.JAVA)
+        // v0.17.x：YouTube 用 JAVA socket（修 SocketTimeoutException）。
+        // v0.18.16：FB 是 rtmps（TLS），JAVA socket 實測只送得出開頭幾秒就停住，改用函式庫預設的
+        // KTOR socket 試（見 diag SOCKET 行；YouTube 路徑行為完全不變）。
+        val socketType = if (resolveCustomRtmpUrl()?.startsWith("rtmps://", ignoreCase = true) == true) {
+            SocketType.KTOR
+        } else {
+            SocketType.JAVA
+        }
+        DiagLogger.log(this, "SOCKET", "socketType=$socketType")
+        rtmpCamera2.getStreamClient().setSocketType(socketType)
 
         // v0.18.10：手機端錄影正式固定 1080p30／20 Mbps；直播 FPS 仍沿用直播設定。
         val recordingEnabled = StreamPrefs.isRecordEnabled(this)
@@ -1183,8 +1218,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         foulAway = 0
         period = 1
         // v0.16.0：功能三——開播勾「重置計分板」一併清空各節結算分數（見計畫書「各節分數自動結算」）
-        quarterScoresHome = IntArray(StreamPrefs.QUARTER_COUNT) { -1 }
-        quarterScoresAway = IntArray(StreamPrefs.QUARTER_COUNT) { -1 }
+        quarterScoresHome = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
+        quarterScoresAway = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
         StreamPrefs.clearQuarterScores(this)
         refreshScoreboardOverlay()
         Toast.makeText(this, getString(R.string.start_live_scoreboard_reset_toast), Toast.LENGTH_SHORT).show()
@@ -1237,8 +1272,19 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // 避免 YouTube 建立直播／RTMP 連線過渡期按鈕狀態不明；onConnectionSuccess 才真正變紅字
         // 收播（見 setLiveButtonPending、類別頂端 KDoc）
         setLiveButtonPending()
+        // v0.18.16：設定頁選 Facebook／自訂推流網址時，一律走推流網址模式，不碰 YouTube API
+        //（RootEncoder 2.6.1 內建支援 rtmp/rtmps/rtmpt/rtmpts；FB 的 rtmps 需搭配 KTOR socket，
+        // 見 applyStreamSettingsAndStartPreview 的 socketType）。
+        val platform = StreamPrefs.getLivePlatform(this)
+        if (platform != StreamPrefs.PLATFORM_YOUTUBE && resolveCustomRtmpUrl() == null) {
+            Toast.makeText(
+                this, getString(R.string.live_platform_missing_key_message, platform), Toast.LENGTH_LONG
+            ).show()
+            setLiveUiState(false)
+            return
+        }
         val account = GoogleAuthManager.getAuthorizedAccount(this)
-        if (account != null) {
+        if (account != null && resolveCustomRtmpUrl() == null) {
             startLiveStreamViaYouTubeApi(account)
         } else {
             // startLiveStreamWithManualKey 改 suspend fun（工作3 治本連帶），這裡是唯一非既有
@@ -1360,8 +1406,45 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.12.0：手動金鑰模式沒有走 YouTube API 建立直播，不存在 broadcastId 可結束
         currentBroadcastId = null
         currentYouTubeService = null
-        beginRtmpStreaming("$YOUTUBE_RTMP_BASE_URL$streamKey")
+        val customUrl = resolveCustomRtmpUrl()
+        if (customUrl != null) {
+            Toast.makeText(this, getString(R.string.live_custom_rtmp_url_toast), Toast.LENGTH_SHORT).show()
+            beginRtmpStreaming(customUrl)
+        } else {
+            beginRtmpStreaming("$YOUTUBE_RTMP_BASE_URL$streamKey")
+        }
     }
+
+    /**
+     * v0.18.16：依設定頁「直播平台」算出要推的完整網址；回傳 null＝走 YouTube 帳號模式。
+     * - Facebook：設定頁的伺服器網址＋金鑰接起來（金鑰已是完整網址就照用）；伺服器網址沒填＝回 null
+     * - 自訂推流網址：金鑰欄位本身就是完整網址
+     * - YouTube：金鑰欄位若被貼了完整網址也照用（相容 v0.18.16 之前的測試方式）
+     */
+    private fun resolveCustomRtmpUrl(): String? {
+        fun isFullUrl(v: String) =
+            v.startsWith("rtmp://", ignoreCase = true) || v.startsWith("rtmps://", ignoreCase = true)
+        return when (StreamPrefs.getLivePlatform(this)) {
+            StreamPrefs.PLATFORM_FACEBOOK -> cleanStreamValue(StreamPrefs.getFacebookStreamKey(this))
+                .ifEmpty { null }
+                // 伺服器網址一律自己填（無預設值），沒填就不給開播；結尾斜線自動處理
+                ?.let {
+                    if (isFullUrl(it)) it
+                    else StreamPrefs.getFacebookServerUrl(this).takeIf(::isFullUrl)?.trimEnd('/')?.plus("/$it")
+                }
+            StreamPrefs.PLATFORM_CUSTOM -> cleanStreamValue(StreamPrefs.getCustomStreamUrl(this))
+                .takeIf { isFullUrl(it) }
+            // YouTube：金鑰欄位若被貼了完整網址也照用（相容 v0.18.16 之前的測試方式）
+            else -> cleanStreamValue(StreamPrefs.getStreamKey(this)).takeIf { isFullUrl(it) }
+        }
+    }
+
+    /**
+     * v0.18.22：金鑰／網址防呆——複製貼上很容易夾帶看不見的雜字元（實際踩到：金鑰尾巴多一個
+     * 上標「⁷」，FB 直接回 `Publish Rejected: Invalid URL`，症狀是連得上卻一直重連）。
+     * 推流網址與金鑰本來就只會是可見的 ASCII 字元，其他一律濾掉。
+     */
+    private fun cleanStreamValue(raw: String): String = raw.trim().filter { it.code in 33..126 }
 
     /**
      * 套用最新串流規格、更新 UI 狀態並實際呼叫 RootEncoder 開始推流（帳號模式與手動金鑰模式共用）。
@@ -2255,6 +2338,60 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         binding.btnAwayPlus2.setOnClickListener { changeScoreAway(2) }
         binding.btnAwayPlus3.setOnClickListener { changeScoreAway(3) }
         binding.btnAwayMinus1.setOnClickListener { changeScoreAway(-1) }
+
+        // v0.18.16：−1 長按＝該隊分數直接歸零（各節結算一起清掉，因為各節分數是從總分推出來的）。
+        // 長按本身就是防誤觸機制，不跳確認框；**直播中一律禁用**（Boss 指定），只有非直播能歸零。
+        // v0.18.27：牛測試鈕（驗收用，之後再決定正式觸發時機）
+        binding.btnToggleBull.setOnClickListener {
+            showScoreboardBull = !showScoreboardBull
+            refreshScoreboardOverlay()
+            Toast.makeText(
+                this,
+                getString(if (showScoreboardBull) R.string.bull_toggle_toast_on else R.string.bull_toggle_toast_off),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        binding.btnRunBull.setOnClickListener { playBullRun() }
+
+        binding.btnHomeMinus1.setOnLongClickListener { resetTeamScore(isHome = true); true }
+        binding.btnAwayMinus1.setOnLongClickListener { resetTeamScore(isHome = false); true }
+
+    }
+
+    private fun resetTeamScore(isHome: Boolean) {
+        if (rejectResetWhileLive()) return
+        if (isHome) {
+            scoreHome = 0
+            quarterScoresHome.fill(-1)
+        } else {
+            scoreAway = 0
+            quarterScoresAway.fill(-1)
+        }
+        persistQuarterScores()
+        refreshScoreboardOverlay()
+        Toast.makeText(
+            this,
+            getString(R.string.score_reset_toast, if (isHome) teamHomeName else teamAwayName),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    /** 直播中禁止長按歸零（Boss 指定，避免比賽中誤觸把分數／節數清光）；回傳 true＝已擋下。 */
+    private fun rejectResetWhileLive(): Boolean {
+        if (!isLive) return false
+        Toast.makeText(this, getString(R.string.reset_blocked_while_live_toast), Toast.LENGTH_SHORT).show()
+        return true
+    }
+
+    /** v0.18.16：節數 − 長按＝節數回第 1 節，兩隊各節結算一併清空（後面各節的結算已無意義）。 */
+    private fun resetPeriod() {
+        if (rejectResetWhileLive()) return
+        period = 1
+        quarterScoresHome.fill(-1)
+        quarterScoresAway.fill(-1)
+        persistQuarterScores()
+        refreshScoreboardOverlay()
+        Toast.makeText(this, getString(R.string.period_reset_toast), Toast.LENGTH_SHORT).show()
     }
 
     private fun changeScoreHome(delta: Int) {
@@ -2263,6 +2400,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // 加分本體不變，純粹只加分不再觸發任何演出（見類別頂端 KDoc v0.14.1 條目）。
         scoreHome = (scoreHome + delta).coerceIn(0, MAX_SCORE)
         refreshScoreboardOverlay()
+        // v0.18.15：主隊（左側）加分自動記一筆精彩標記「<主隊名>N號：X分」，號碼留 N 由 Boss 事後補；
+        // 減分與客隊加分不記（Boss 指定）。未開播時不記，直接加分不跳提示。
+        if (delta > 0) {
+            addHighlightMarker(getString(R.string.highlight_score_label_format, teamHomeName, delta))
+        }
     }
 
     private fun changeScoreAway(delta: Int) {
@@ -2277,6 +2419,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         binding.btnFoulHomePlus.setOnClickListener { changeFoulHome(1) }
         binding.btnPeriodMinus.setOnClickListener { changePeriod(-1) }
         binding.btnPeriodPlus.setOnClickListener { changePeriod(1) }
+        binding.btnPeriodMinus.setOnLongClickListener { resetPeriod(); true }
         binding.btnFoulAwayMinus.setOnClickListener { changeFoulAway(-1) }
         binding.btnFoulAwayPlus.setOnClickListener { changeFoulAway(1) }
     }
@@ -2292,9 +2435,30 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         refreshScoreboardOverlay()
     }
 
+    /**
+     * v0.18.15：休息畫面計分表的欄數——正規賽固定 4 欄；打進延長賽後每多打一節就往右多長一欄
+     * （OT1／OT2／OT3），前面各節的分數維持各自獨立不動（Boss 指定）。
+     */
+    private fun breakTableColumnCount(): Int =
+        period.coerceIn(StreamPrefs.QUARTER_COUNT, StreamPrefs.PERIOD_SLOT_COUNT)
+
+    /** 計分表欄位標題：前 4 欄「第N節」，之後是 OT1／OT2／OT3。 */
+    private fun breakColumnHeader(columnIndex: Int): String =
+        if (columnIndex < StreamPrefs.QUARTER_COUNT) {
+            getString(R.string.break_quarter_header_format, columnIndex + 1)
+        } else {
+            getString(R.string.period_overtime_format, columnIndex + 1 - StreamPrefs.QUARTER_COUNT)
+        }
+
+    /** v0.18.15：第 5 節起改顯示延長賽（第5節＝OT1…第7節＝OT3），計分板不再印「第 5 節」。 */
+    private fun periodLabel(): String =
+        if (period <= StreamPrefs.QUARTER_COUNT) getString(R.string.period_format, period)
+        else getString(R.string.period_overtime_format, period - StreamPrefs.QUARTER_COUNT)
+
     private fun changePeriod(delta: Int) {
         val oldPeriod = period
-        period = (period + delta).coerceAtLeast(1)
+        // v0.18.15：上限鎖第 7 節＝正規四節＋三次延長（Boss 指定），避免手滑一路按到第 20 節
+        period = (period + delta).coerceIn(1, MAX_PERIOD)
         // 已在下限（第 1 節）再按減，節數沒變＝不做任何結算，避免誤收回不存在的結算
         if (period == oldPeriod) return
         // v0.16.0：功能三——切節數當下自動結算各節分數（見計畫書「各節分數自動結算」）
@@ -2310,7 +2474,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      */
     private fun settleQuarterOnAdvance(finishedPeriod: Int) {
         val index = finishedPeriod - 1
-        if (index !in 0 until StreamPrefs.QUARTER_COUNT) return
+        if (index !in 0 until StreamPrefs.PERIOD_SLOT_COUNT) return
         val settledHome = quarterScoresHome.filter { it >= 0 }.sum()
         val settledAway = quarterScoresAway.filter { it >= 0 }.sum()
         quarterScoresHome[index] = (scoreHome - settledHome).coerceAtLeast(0)
@@ -2323,7 +2487,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      */
     private fun settleQuarterOnRewind(newPeriod: Int) {
         val index = newPeriod - 1
-        if (index !in 0 until StreamPrefs.QUARTER_COUNT) return
+        if (index !in 0 until StreamPrefs.PERIOD_SLOT_COUNT) return
         quarterScoresHome[index] = -1
         quarterScoresAway[index] = -1
     }
@@ -2394,8 +2558,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                     foulHome = 0
                     foulAway = 0
                     period = 1
-                    quarterScoresHome = IntArray(StreamPrefs.QUARTER_COUNT) { -1 }
-                    quarterScoresAway = IntArray(StreamPrefs.QUARTER_COUNT) { -1 }
+                    quarterScoresHome = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
+                    quarterScoresAway = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
                     StreamPrefs.clearQuarterScores(this)
                     refreshScoreboardOverlay()
                     Toast.makeText(this, getString(R.string.reset_scores_done_toast), Toast.LENGTH_SHORT).show()
@@ -2432,6 +2596,20 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     }
 
     /**
+     * v0.18.15：Debug 版把計分板／休息畫面同一張圖另存透明底 PNG 到外部檔案區，要出圖直接
+     * `adb pull`，不用截整個畫面再去背；Release 版不呼叫。存檔失敗不吵（只是出圖用），
+     * 直播本身不受影響——鐵律同標記存檔。
+     */
+    private fun dumpOverlayPng(bitmap: Bitmap, fileName: String) {
+        try {
+            java.io.File(getExternalFilesDir(null), fileName).outputStream().use {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+        } catch (e: Exception) {
+        }
+    }
+
+    /**
      * v0.6.0：燒入計分板改版為轉播風格橫幅，取代原本單行純文字版面。整體分成兩區塊：
      * - 左側區塊（[drawEventNameAndPeriodColumn]）：賽事名稱，置中對齊；留空則不畫任何文字或
      *   預留框線，整欄留白（v0.9.14 起節數不在此欄，見下）
@@ -2444,8 +2622,20 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun buildScoreboardOverlayBitmap(): Bitmap {
         val bitmapWidth = (streamWidthForOverlay * OVERLAY_WIDTH_RATIO).toInt().coerceAtLeast(1)
         val bitmapHeight = (streamHeightForOverlay * OVERLAY_HEIGHT_RATIO).toInt().coerceAtLeast(1)
-        val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+        // v0.18.15：Bitmap 往上長出 [bullHeadroom] 放 Q 版牛；面板本身維持原尺寸並貼齊 Bitmap
+        // 底部（濾鏡是 TranslateTo.BOTTOM 對齊），所以計分板在畫面上的位置與大小完全不變。
+        val bull = if (showScoreboardBull) scoreboardBullBitmap else null
+        val bullHeight = if (bull == null) 0f else bitmapHeight * BULL_HEIGHT_RATIO
+        // v0.18.27：上方留白取「靜態牛」與「跑動牛」兩者需要的較大值，且不隨動畫變動——
+        // Bitmap 高度一變，濾鏡底部對齊會讓整條計分板在畫面上跳動。
+        val runHeadroom = (bitmapHeight * (BULL_RUN_HEIGHT_RATIO - BULL_RUN_FOOT_OVERLAP_RATIO)).toInt()
+        val bullHeadroom = maxOf(
+            (bullHeight - bitmapHeight * BULL_OVERLAP_RATIO).toInt(),
+            runHeadroom
+        ).coerceAtLeast(0)
+        val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight + bullHeadroom, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        canvas.translate(0f, bullHeadroom.toFloat())
 
         // v0.8.6：Boss 要求改回黑底帶點透明，取消 v0.7.4 的鈦金屬灰漸層底／亮藍描邊
         // v0.9.0：Boss 從六款樣圖選定「經典轉播藏青金」——藏青直向漸層底（微透明）＋金色細邊框
@@ -2501,7 +2691,72 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
         drawMainScoreRow(canvas, leftColumnWidth, bitmapWidth.toFloat(), bitmapHeight)
 
+        // 牛畫在最後＝牛掌壓在面板上緣之上（頭與角在面板外的上方空間），與參考圖一致
+        if (bull != null) {
+            val bullWidth = bullHeight * bull.width / bull.height
+            val bullLeft = bitmapHeight * BULL_LEFT_RATIO
+            // v0.18.27：以「牛掌壓進面板上緣的深度」定位（不再貼齊 Bitmap 頂端），
+            // 這樣上方留白因跑動牛加大時，靜態牛仍緊貼面板不會浮起來
+            val bullTop = bitmapHeight * BULL_OVERLAP_RATIO - bullHeight
+            canvas.drawBitmap(
+                bull, null,
+                RectF(bullLeft, bullTop, bullLeft + bullWidth, bullTop + bullHeight),
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            )
+        }
+
+        // v0.18.27：跑動牛——從計分板左緣跑到客隊隊名上方，腳略微踩進面板上緣
+        val runFrame = bullRunFrames.getOrNull(bullRunFrameIndex)
+        if (bullRunProgress >= 0f && runFrame != null) {
+            val runHeight = bitmapHeight * BULL_RUN_HEIGHT_RATIO
+            val runWidth = runHeight * runFrame.width / runFrame.height
+            val startX = -runWidth * 0.5f
+            val endX = bitmapWidth * BULL_RUN_END_X_RATIO - runWidth / 2f
+            val left = startX + (endX - startX) * bullRunProgress.coerceIn(0f, 1f)
+            val bottom = bitmapHeight * BULL_RUN_FOOT_OVERLAP_RATIO
+            canvas.drawBitmap(
+                runFrame, null,
+                RectF(left, bottom - runHeight, left + runWidth, bottom),
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            )
+        }
+
+        // 動畫進行中不寫出圖檔（一秒十幾張 PNG 純浪費）
+        if (BuildConfig.DEBUG && bullRunProgress < 0f) dumpOverlayPng(bitmap, "scoreboard_overlay.png")
         return bitmap
+    }
+
+    /**
+     * v0.18.27：跑動牛播一次——八格循環每 [BULL_RUN_FRAME_MS] 換一格，同時把水平位置往右推；
+     * 跑到客隊隊名上方後停留 [BULL_RUN_HOLD_MS] 再收掉。只重畫計分板 Bitmap，不碰編碼器。
+     */
+    private fun playBullRun() {
+        if (bullRunProgress >= 0f) return
+        if (bullRunFrames.isEmpty()) {
+            Toast.makeText(this, getString(R.string.bull_run_missing_toast), Toast.LENGTH_SHORT).show()
+            return
+        }
+        bullRunProgress = 0f
+        bullRunFrameIndex = 0
+        val steps = (BULL_RUN_DURATION_MS / BULL_RUN_FRAME_MS).toInt().coerceAtLeast(1)
+        val tick = object : Runnable {
+            override fun run() {
+                bullRunProgress += 1f / steps
+                bullRunFrameIndex = (bullRunFrameIndex + 1) % bullRunFrames.size
+                if (bullRunProgress >= 1f) {
+                    bullRunProgress = 1f
+                    refreshScoreboardOverlay()
+                    bullRunHandler.postDelayed({
+                        bullRunProgress = -1f
+                        refreshScoreboardOverlay()
+                    }, BULL_RUN_HOLD_MS)
+                    return
+                }
+                refreshScoreboardOverlay()
+                bullRunHandler.postDelayed(this, BULL_RUN_FRAME_MS)
+            }
+        }
+        bullRunHandler.postDelayed(tick, BULL_RUN_FRAME_MS)
     }
 
     /**
@@ -2644,7 +2899,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         periodPaint.textSize = barHeight * 1.9f
         val periodCenterX = (homeBoxRight + awayBoxLeft) / 2f
         val periodY = (barRowY + barHeight / 2f) - (periodPaint.descent() + periodPaint.ascent()) / 2f
-        canvas.drawText(getString(R.string.period_format, period), periodCenterX, periodY, periodPaint)
+        canvas.drawText(periodLabel(), periodCenterX, periodY, periodPaint)
         val barSpacing = bitmapHeight * FOUL_BAR_SPACING_RATIO
         drawFoulBars(canvas, teamHomeCenterX, barRowY, foulHome, barWidth, barHeight, barSpacing)
         drawFoulBars(canvas, teamAwayCenterX, barRowY, foulAway, barWidth, barHeight, barSpacing)
@@ -3212,20 +3467,32 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
     // ==================== v0.13.0：功能 A 精彩時刻標記（見類別頂端 KDoc） ====================
 
-    /** ⭐鈕：只在直播中可按，記「目前直播經過時間－回推秒數」＋當下節數/兩隊比分。 */
+    /**
+     * v0.18.15：標記改由主隊加分自動產生（[changeScoreHome]），這顆鈕改成「移除標記」——
+     * 每按一次刪掉最後一筆（按加入順序往回刪），清單空了只跳提示。
+     */
     private fun setupHighlightMarkButton() {
         binding.btnHighlightMark.setOnClickListener {
-            if (!isLive) {
-                Toast.makeText(this, getString(R.string.highlight_only_while_live_toast), Toast.LENGTH_SHORT).show()
+            // 用 removeAt 不用 removeLast()——後者在 Android 14 以下會踩到 SequencedCollection 的 NoSuchMethodError
+            if (highlightMarkers.isEmpty()) {
+                Toast.makeText(this, getString(R.string.highlight_undo_empty_toast), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            val reboundSeconds = StreamPrefs.parseHighlightReboundSeconds(StreamPrefs.getHighlightReboundSeconds(this))
-            val elapsedMs = SystemClock.elapsedRealtime() - liveStartElapsedMs
-            val markTimestampMs = (elapsedMs - reboundSeconds * 1000L).coerceAtLeast(0L)
-            highlightMarkers.add(HighlightMarker(markTimestampMs, period, scoreHome, scoreAway))
+            val removed = highlightMarkers.removeAt(highlightMarkers.size - 1)
             persistHighlightMarkers()
-            Toast.makeText(this, getString(R.string.highlight_marked_toast), Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.highlight_undo_toast, removed.toDisplayLine()), Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /** 記「目前直播經過時間－回推秒數」＋當下節數/兩隊比分＋說明文字；未開播直接跳過不記。 */
+    private fun addHighlightMarker(label: String) {
+        if (!isLive) return
+        val reboundSeconds = StreamPrefs.parseHighlightReboundSeconds(StreamPrefs.getHighlightReboundSeconds(this))
+        val elapsedMs = SystemClock.elapsedRealtime() - liveStartElapsedMs
+        val markTimestampMs = (elapsedMs - reboundSeconds * 1000L).coerceAtLeast(0L)
+        highlightMarkers.add(HighlightMarker(markTimestampMs, period, scoreHome, scoreAway, label))
+        persistHighlightMarkers()
+        Toast.makeText(this, getString(R.string.highlight_marked_toast, label), Toast.LENGTH_SHORT).show()
     }
 
     private fun persistHighlightMarkers() {
@@ -3516,7 +3783,10 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.BLACK)
 
-        val panelWidth = frameWidth * BREAK_PANEL_WIDTH_RATIO
+        // v0.18.15：延長賽每多一欄，整個面板往左右各撐開一點（畫面左右本來就是空黑底），
+        // 欄寬與所有文字大小維持不變——字級都是算 panelHeight，面板變寬不會縮字（Boss 指定）。
+        val panelWidth = frameWidth *
+            (BREAK_PANEL_WIDTH_RATIO + (breakTableColumnCount() - StreamPrefs.QUARTER_COUNT) * BREAK_PANEL_WIDTH_PER_OT)
         val panelHeight = frameHeight * BREAK_PANEL_HEIGHT_RATIO
         val panelLeft = (frameWidth - panelWidth) / 2f
         val panelTop = (frameHeight - panelHeight) / 2f
@@ -3567,6 +3837,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         drawBreakQuarterTable(
             canvas, panelLeft + padHorizontal, panelLeft + panelWidth - padHorizontal, tableTop, tableBottom, panelHeight
         )
+        if (BuildConfig.DEBUG) dumpOverlayPng(bitmap, "break_screen.png")
         return bitmap
     }
 
@@ -3628,9 +3899,10 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun drawBreakQuarterTable(
         canvas: Canvas, tableLeft: Float, tableRight: Float, top: Float, bottom: Float, panelHeight: Float
     ) {
+        val columnCount = breakTableColumnCount()
         val tableWidth = tableRight - tableLeft
         val teamColumnWidth = tableWidth * 0.26f
-        val numericColumnWidth = (tableWidth - teamColumnWidth) / StreamPrefs.QUARTER_COUNT
+        val numericColumnWidth = (tableWidth - teamColumnWidth) / columnCount
         fun numericCenterX(columnIndex: Int) = tableLeft + teamColumnWidth + numericColumnWidth * (columnIndex + 0.5f)
 
         val totalHeight = bottom - top
@@ -3648,8 +3920,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             textSize = panelHeight * 0.052f
         }
         val headerBaseline = headerCenterY - (headerPaint.descent() + headerPaint.ascent()) / 2f
-        for (quarter in 0 until StreamPrefs.QUARTER_COUNT) {
-            canvas.drawText(getString(R.string.break_quarter_header_format, quarter + 1), numericCenterX(quarter), headerBaseline, headerPaint)
+        for (quarter in 0 until columnCount) {
+            canvas.drawText(breakColumnHeader(quarter), numericCenterX(quarter), headerBaseline, headerPaint)
         }
 
         // 表頭下金色細分隔線
@@ -3665,7 +3937,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         val liveIndex = period - 1
         val homeRow = quarterScoresHome.copyOf()
         val awayRow = quarterScoresAway.copyOf()
-        if (liveIndex in 0 until StreamPrefs.QUARTER_COUNT) {
+        if (liveIndex in 0 until columnCount) {
             if (homeRow[liveIndex] < 0) {
                 homeRow[liveIndex] = (scoreHome - homeRow.filter { it >= 0 }.sum()).coerceAtLeast(0)
             }
@@ -3673,8 +3945,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                 awayRow[liveIndex] = (scoreAway - awayRow.filter { it >= 0 }.sum()).coerceAtLeast(0)
             }
         }
-        drawBreakTeamRow(canvas, teamHomeName, homeRow, tableLeft, teamColumnWidth, homeCenterY, ::numericCenterX, panelHeight)
-        drawBreakTeamRow(canvas, teamAwayName, awayRow, tableLeft, teamColumnWidth, awayCenterY, ::numericCenterX, panelHeight)
+        drawBreakTeamRow(canvas, teamHomeName, homeRow, columnCount, tableLeft, teamColumnWidth, homeCenterY, ::numericCenterX, panelHeight)
+        drawBreakTeamRow(canvas, teamAwayName, awayRow, columnCount, tableLeft, teamColumnWidth, awayCenterY, ::numericCenterX, panelHeight)
     }
 
     /** 樣式06 明細表單一隊列：隊名（暖白粗體、靠右貼齊數字欄，過寬自動縮字）＋各節分數／「–」。 */
@@ -3682,6 +3954,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         canvas: Canvas,
         teamName: String,
         quarterScores: IntArray,
+        columnCount: Int,
         tableLeft: Float,
         teamColumnWidth: Float,
         centerY: Float,
@@ -3717,7 +3990,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             textSize = panelHeight * 0.062f
         }
         val numberBaseline = centerY - (numberPaint.descent() + numberPaint.ascent()) / 2f
-        for (quarter in 0 until StreamPrefs.QUARTER_COUNT) {
+        for (quarter in 0 until columnCount) {
             val settled = quarterScores.getOrElse(quarter) { -1 }
             if (settled >= 0) {
                 canvas.drawText(settled.toString(), numericCenterX(quarter), numberBaseline, numberPaint)
@@ -3758,6 +4031,24 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // 內容較舊版單行文字複雜，寬高比例同步微調（0.41→0.46、0.107→0.125）
         const val OVERLAY_WIDTH_RATIO = 0.46f
         const val OVERLAY_HEIGHT_RATIO = 0.125f
+
+        // v0.18.15：Q 版牛趴在計分板左上角（Boss 給的參考圖）——三個比例都相對「面板高度」，
+        // 面板本身與所有文字排版完全不動，只是 Bitmap 往上長出一塊放牛的空間（見
+        // buildScoreboardOverlayBitmap）。要調牛的大小／位置改這三顆就好。
+        const val BULL_HEIGHT_RATIO = 1.05f      // 牛整體高度
+        const val BULL_OVERLAP_RATIO = 0.20f     // 牛掌壓進面板上緣的深度
+        const val BULL_LEFT_RATIO = 0.15f        // 牛左緣離面板左緣的距離
+
+        // v0.18.27：跑動牛（八格循環）——高度／落腳深度同樣相對面板高度，終點相對面板寬度
+        const val BULL_RUN_HEIGHT_RATIO = 2.60f       // 跑動牛高度（v0.18.28 Boss 指定放大一倍）
+        const val BULL_RUN_FOOT_OVERLAP_RATIO = 0.18f // 腳踩進面板上緣的深度
+        const val BULL_RUN_END_X_RATIO = 0.86f        // 終點＝客隊隊名上方
+        const val BULL_RUN_FRAME_MS = 90L             // 每格停留時間
+        const val BULL_RUN_DURATION_MS = 2700L        // 從左跑到終點的總時間
+        const val BULL_RUN_HOLD_MS = 1500L            // 到終點後停留多久才收掉
+
+        // v0.18.15：節數上限＝正規四節＋三次延長（第 5～7 節顯示 OT1～OT3，見 periodLabel）
+        const val MAX_PERIOD = StreamPrefs.PERIOD_SLOT_COUNT
 
         // v0.6.0：計分板左側區塊（賽事名稱，v0.9.14 起節數搬離此欄）佔整體寬度比例
         const val LEFT_COLUMN_WIDTH_RATIO = 0.24f
@@ -3843,6 +4134,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.16.0：功能三——休息畫面面板佔整張畫面（黑底）的寬／高比例（16:9 置中）
         // v0.16.2：樣式09 改樣式06（上下兩層：對決區＋四節明細表），面板改窄改高
         const val BREAK_PANEL_WIDTH_RATIO = 0.60f
+        // v0.18.15：每進一次延長賽（多一欄）面板加寬的比例，OT3 時＝0.60+0.30＝畫面寬的 0.90
+        const val BREAK_PANEL_WIDTH_PER_OT = 0.10f
         const val BREAK_PANEL_HEIGHT_RATIO = 0.62f
 
         // v0.16.3：休息畫面「停相機降溫」（順位2）總開關——Boss 直播實測停相機後畫面凍結

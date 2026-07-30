@@ -20,13 +20,42 @@
             android:textStyle="bold"
             android:layout_marginBottom="20dp" />
 
+        <!-- v0.18.23：全功能使用教學——標題點一下展開／收起，預設收起（見 SettingsActivity.setupGuide） -->
+        <TextView
+            android:id="@+id/tvGuideHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@drawable/bg_settings_field"
+            android:padding="12dp"
+            android:text="@string/settings_guide_header_collapsed"
+            android:textColor="@color/text_label"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="20dp" />
+
+        <TextView
+            android:id="@+id/tvGuideBody"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="12dp"
+            android:text="@string/settings_guide_body"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:lineSpacingMultiplier="1.25"
+            android:visibility="gone"
+            android:layout_marginBottom="20dp" />
+
         <!-- YouTube 帳號：顯示目前登入狀態，並提供登出／切換帳號入口 -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_account_label"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvAccountStatus"
@@ -52,12 +81,20 @@
         <!-- v0.16.0：功能一——直播標題雙模板。兩個模板各自可編輯保存＋單選鈕選用；
              切換選中模板時把該模板文字帶入下方「本次直播標題」欄供微調（微調不回寫模板），
              開播實際採用「本次直播標題」欄（etStreamTitle，沿用既有存取入口，見 SettingsActivity）。 -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_title_template_section"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <RadioGroup
             android:id="@+id/radioGroupTitleTemplate"
@@ -85,12 +122,15 @@
                     android:id="@+id/etTitleTemplate1"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:background="@drawable/bg_settings_field"
+                    android:padding="10dp"
                     android:layout_weight="1"
                     android:layout_marginStart="8dp"
                     android:hint="@string/settings_title_template_1_hint"
                     android:textColorHint="@color/text_secondary"
                     android:textColor="@color/white"
-                    android:inputType="text" />
+                    android:inputType="text"
+                />
 
             </LinearLayout>
 
@@ -114,44 +154,66 @@
                     android:id="@+id/etTitleTemplate2"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:background="@drawable/bg_settings_field"
+                    android:padding="10dp"
                     android:layout_weight="1"
                     android:layout_marginStart="8dp"
                     android:hint="@string/settings_title_template_2_hint"
                     android:textColorHint="@color/text_secondary"
                     android:textColor="@color/white"
-                    android:inputType="text" />
+                    android:inputType="text"
+                />
 
             </LinearLayout>
 
         </RadioGroup>
 
         <!-- 本次直播標題：切模板帶入此欄，可微調；開播實際用此欄文字 -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_title_final_label"
-            android:textColor="@color/text_secondary"
+            android:textColor="@color/text_label"
             android:textSize="13sp"
+            android:textStyle="bold"
             android:layout_marginTop="12dp" />
 
         <EditText
             android:id="@+id/etStreamTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
             android:hint="@string/settings_stream_title_hint"
             android:textColorHint="@color/text_secondary"
             android:textColor="@color/white"
             android:inputType="text"
             android:layout_marginTop="4dp"
-            android:layout_marginBottom="20dp" />
+            android:layout_marginBottom="20dp"
+        />
 
         <!-- 賽事名稱：燒入計分板左側區塊，留空則該區塊不顯示 -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_event_name_label"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <!-- v0.9.17：拆成兩個輸入欄（燒入計分板的第一行／第二行），hint 標註上限；
              取代 v0.9.16 的單欄 6 字自動換行（燒入端改回依欄位內容分行，見
@@ -160,42 +222,229 @@
             android:id="@+id/etEventNameLine1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
             android:hint="@string/settings_event_name_line1_hint"
             android:textColorHint="@color/text_secondary"
             android:textColor="@color/white"
             android:inputType="text"
             android:maxLength="12"
-            android:layout_marginTop="4dp" />
+            android:layout_marginTop="4dp"
+        />
 
         <EditText
             android:id="@+id/etEventNameLine2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
             android:hint="@string/settings_event_name_line2_hint"
             android:textColorHint="@color/text_secondary"
             android:textColor="@color/white"
             android:inputType="text"
             android:maxLength="12"
             android:layout_marginTop="2dp"
+            android:layout_marginBottom="20dp"
+        />
+
+        <!-- v0.18.26：隊名也能在設定頁改（原本只能點畫面上的隊名），存好回直播畫面立即帶入計分板 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_team_names_label"
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etTeamHomeName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
+            android:hint="@string/settings_team_home_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="text"
+            android:maxLength="4"
+            android:layout_marginTop="4dp" />
+
+        <EditText
+            android:id="@+id/etTeamAwayName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
+            android:hint="@string/settings_team_away_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="text"
+            android:maxLength="4"
+            android:layout_marginTop="2dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_team_names_note"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:layout_marginTop="4dp"
             android:layout_marginBottom="20dp" />
 
-        <!-- 串流金鑰（開發測試入口，正式版改為帳號登入自動取得） -->
+        <!-- v0.18.16：直播平台（YouTube 帳號模式／Facebook 貼金鑰／自訂推流網址） -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_live_platform_label"
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/spinnerLivePlatform"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/live_platform_options"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_live_platform_note"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 串流金鑰（YouTube 帳號模式免填；Facebook／自訂平台必填） -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_stream_key_label"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <EditText
             android:id="@+id/etStreamKey"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
             android:hint="@string/settings_stream_key_hint"
             android:textColorHint="@color/text_secondary"
             android:textColor="@color/white"
             android:inputType="textVisiblePassword"
-            android:layout_marginTop="4dp" />
+            android:layout_marginTop="4dp"
+        />
+
+        <!-- v0.18.17：FB／自訂各一格，切平台不用重貼（Boss 指定） -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_stream_key_facebook_label"
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:layout_marginTop="12dp" />
+
+        <EditText
+            android:id="@+id/etStreamKeyFacebook"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
+            android:hint="@string/settings_stream_key_facebook_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="textVisiblePassword"
+            android:layout_marginTop="4dp"
+        />
+
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_facebook_server_url_label"
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:layout_marginTop="12dp" />
+
+        <EditText
+            android:id="@+id/etFacebookServerUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
+            android:hint="@string/settings_facebook_server_url_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="textUri"
+            android:layout_marginTop="4dp"
+        />
+
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_stream_key_custom_label"
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:layout_marginTop="12dp" />
+
+        <EditText
+            android:id="@+id/etStreamKeyCustom"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
+            android:hint="@string/settings_stream_key_custom_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="textVisiblePassword"
+            android:layout_marginTop="4dp"
+        />
 
         <TextView
             android:layout_width="match_parent"
@@ -207,12 +456,20 @@
             android:layout_marginBottom="20dp" />
 
         <!-- 隱私設定 -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_privacy_label"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <Spinner
             android:id="@+id/spinnerPrivacy"
@@ -266,12 +523,20 @@
             android:textSize="14sp" />
 
         <!-- 解析度 -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_resolution_label"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <Spinner
             android:id="@+id/spinnerResolution"
@@ -282,12 +547,20 @@
             android:layout_marginBottom="20dp" />
 
         <!-- fps -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_fps_label"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <Spinner
             android:id="@+id/spinnerFps"
@@ -298,12 +571,20 @@
             android:layout_marginBottom="20dp" />
 
         <!-- 碼率 -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_bitrate_label"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <Spinner
             android:id="@+id/spinnerBitrate"
@@ -379,12 +660,20 @@
 
         </LinearLayout>
 
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_record_resolution_label"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <Spinner
             android:id="@+id/spinnerRecordResolution"
@@ -403,12 +692,20 @@
             android:layout_marginTop="4dp"
             android:layout_marginBottom="20dp" />
 
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_record_save_mode_label"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <Spinner
             android:id="@+id/spinnerRecordSaveMode"
@@ -438,12 +735,20 @@
             android:layout_marginBottom="28dp" />
 
         <!-- v0.13.0：功能 A 精彩時刻標記——標記回推秒數 -->
+        <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings_highlight_rebound_seconds_label"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
         <Spinner
             android:id="@+id/spinnerHighlightReboundSeconds"

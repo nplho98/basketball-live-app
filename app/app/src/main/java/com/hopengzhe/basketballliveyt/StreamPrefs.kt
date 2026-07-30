@@ -22,6 +22,16 @@ object StreamPrefs {
     private const val KEY_BITRATE = "bitrate"
     private const val KEY_BITRATE_AUTO_ADJUST = "bitrate_auto_adjust"
     private const val KEY_STREAM_KEY = "stream_key"
+    private const val KEY_STREAM_KEY_FACEBOOK = "stream_key_facebook"
+    private const val KEY_FACEBOOK_SERVER_URL = "facebook_server_url"
+    private const val KEY_STREAM_KEY_CUSTOM = "stream_key_custom"
+    // v0.18.16：直播平台——YouTube 走帳號模式自動建立直播；Facebook／自訂只用推流網址（見
+    // LiveActivity.resolveCustomRtmpUrl）。選項文字需與 strings.xml 的 live_platform_options 一致。
+    private const val KEY_LIVE_PLATFORM = "live_platform"
+    const val PLATFORM_YOUTUBE = "YouTube（帳號模式）"
+    const val PLATFORM_FACEBOOK = "Facebook（網址＋金鑰）"
+    const val PLATFORM_CUSTOM = "自訂推流網址"
+
     private const val KEY_TEAM_HOME_NAME = "team_home_name"
     private const val KEY_TEAM_AWAY_NAME = "team_away_name"
     private const val KEY_EVENT_NAME = "event_name"
@@ -39,6 +49,9 @@ object StreamPrefs {
     private const val KEY_QUARTER_SCORES_HOME = "quarter_scores_home"
     private const val KEY_QUARTER_SCORES_AWAY = "quarter_scores_away"
     const val QUARTER_COUNT = 4
+
+    /** v0.18.15：各節分數欄位總格數＝正規四節＋三次延長（OT1～OT3），節數上限也是這個數。 */
+    const val PERIOD_SLOT_COUNT = QUARTER_COUNT + 3
 
     // v0.13.0：功能 A 精彩時刻標記——回推秒數（見 LiveActivity 類別頂端 KDoc）
     private const val KEY_HIGHLIGHT_REBOUND_SECONDS = "highlight_rebound_seconds"
@@ -142,6 +155,45 @@ object StreamPrefs {
     /** 開發測試用的 YouTube 串流金鑰，未來會改由帳號登入自動取得。 */
     fun getStreamKey(context: Context): String = prefs(context).getString(KEY_STREAM_KEY, "") ?: ""
 
+    /**
+     * v0.18.17：三個平台各存各的金鑰，切平台不用重貼（Boss 指定）。
+     * [KEY_STREAM_KEY] 沿用成 YouTube 那格（舊設定直接相容）。
+     */
+    fun getFacebookStreamKey(context: Context): String =
+        prefs(context).getString(KEY_STREAM_KEY_FACEBOOK, "") ?: ""
+
+    fun getCustomStreamUrl(context: Context): String =
+        prefs(context).getString(KEY_STREAM_KEY_CUSTOM, "") ?: ""
+
+    /**
+     * v0.18.21：FB 伺服器網址一律由使用者自己填，**不給預設值**（Boss 指定：避免拿到 APK 的人
+     * 沿用別人帶進來的網址）。留空＝不能開播，開播時擋下並提示（見 LiveActivity.startLiveStream）。
+     */
+    fun getFacebookServerUrl(context: Context): String =
+        (prefs(context).getString(KEY_FACEBOOK_SERVER_URL, "") ?: "").trim()
+
+    fun savePlatformStreamKeys(context: Context, facebookKey: String, facebookServerUrl: String, customUrl: String) {
+        prefs(context).edit()
+            .putString(KEY_STREAM_KEY_FACEBOOK, facebookKey)
+            .putString(KEY_FACEBOOK_SERVER_URL, facebookServerUrl)
+            .putString(KEY_STREAM_KEY_CUSTOM, customUrl)
+            .apply()
+    }
+
+    /** 只認關鍵字，選項文字改版（例 v0.18.23「貼金鑰」→「網址＋金鑰」）也不會讓舊設定失效。 */
+    fun getLivePlatform(context: Context): String {
+        val saved = prefs(context).getString(KEY_LIVE_PLATFORM, PLATFORM_YOUTUBE) ?: PLATFORM_YOUTUBE
+        return when {
+            saved.contains("Facebook", ignoreCase = true) -> PLATFORM_FACEBOOK
+            saved.contains("自訂") -> PLATFORM_CUSTOM
+            else -> PLATFORM_YOUTUBE
+        }
+    }
+
+    fun saveLivePlatform(context: Context, platform: String) {
+        prefs(context).edit().putString(KEY_LIVE_PLATFORM, platform).apply()
+    }
+
     /** 解析解析度字串（例如「1280x720（720p）」）成寬高 px，解析失敗則回傳 720p 預設值。 */
     fun parseResolution(resolution: String): Pair<Int, Int> {
         val match = Regex("""(\d+)x(\d+)""").find(resolution)
@@ -233,12 +285,15 @@ object StreamPrefs {
             .apply()
     }
 
-    /** 把「-1,18,22,15」這種逗號字串解析成長度 [QUARTER_COUNT] 的陣列（缺值／解析失敗一律補 -1）。 */
+    /**
+     * 把「-1,18,22,15」這種逗號字串解析成長度 [PERIOD_SLOT_COUNT] 的陣列（缺值／解析失敗一律補 -1）。
+     * v0.18.15 前存的是 4 格舊字串，後面 3 格延長賽自動補 -1，不用特別轉檔。
+     */
     private fun parseQuarterScores(raw: String?): IntArray {
-        val result = IntArray(QUARTER_COUNT) { -1 }
+        val result = IntArray(PERIOD_SLOT_COUNT) { -1 }
         if (raw.isNullOrBlank()) return result
         raw.split(",").forEachIndexed { index, part ->
-            if (index < QUARTER_COUNT) result[index] = part.trim().toIntOrNull() ?: -1
+            if (index < PERIOD_SLOT_COUNT) result[index] = part.trim().toIntOrNull() ?: -1
         }
         return result
     }
