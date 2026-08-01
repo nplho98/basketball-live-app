@@ -68,6 +68,7 @@ class SettingsActivity : AppCompatActivity() {
 
         loadSavedSettings()
         setupGuide()
+        setupKeyLock()
         refreshAccountStatus()
         setupNetworkDetection()
         setupRecordSection()
@@ -116,6 +117,14 @@ class SettingsActivity : AppCompatActivity() {
                 binding.etTitleTemplate2.text.toString(),
                 if (binding.radioTitleTemplate2.isChecked) 2 else 1
             )
+            // v0.18.38：YouTube 兩組帳號（A 組金鑰仍由上面 StreamPrefs.save 的 streamKey 存）
+            StreamPrefs.saveYouTubeProfiles(
+                this,
+                if (binding.radioYouTubeProfileB.isChecked) 2 else 1,
+                binding.etYouTubeLabelA.text.toString().trim(),
+                binding.etYouTubeLabelB.text.toString().trim(),
+                binding.etYouTubeKeyB.text.toString().trim()
+            )
             // v0.18.26：隊名（與畫面上點隊名編輯共用同一份設定，留空＝用預設「主隊／客隊」）
             StreamPrefs.saveTeamNames(
                 this,
@@ -149,6 +158,49 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * v0.18.40：金鑰欄位鎖定——鎖定時 YT 兩組金鑰與 FB 金鑰／伺服器網址不能編輯（文字照樣看得清楚，
+     * 只是點不進去），避免比賽前手滑改壞。狀態存 [StreamPrefs]，下次進設定頁維持上次的鎖定狀態。
+     */
+    private fun setupKeyLock() {
+        binding.btnLockKeys.setOnClickListener {
+            val locked = !StreamPrefs.isKeyFieldsLocked(this)
+            StreamPrefs.saveKeyFieldsLocked(this, locked)
+            applyKeyLock(locked)
+        }
+        applyKeyLock(StreamPrefs.isKeyFieldsLocked(this))
+    }
+
+    private fun applyKeyLock(locked: Boolean) {
+        listOf(
+            binding.etStreamKey, binding.etYouTubeKeyB,
+            binding.etStreamKeyFacebook, binding.etFacebookServerUrl
+        ).forEach {
+            it.isFocusable = !locked
+            it.isFocusableInTouchMode = !locked
+            it.isCursorVisible = !locked
+            it.isLongClickable = !locked
+        }
+        binding.btnLockKeys.setText(
+            if (locked) R.string.settings_keys_locked_button else R.string.settings_keys_unlocked_button
+        )
+    }
+
+    /** 目前選用那組的金鑰欄位用高亮底圖，另一組維持一般底圖。 */
+    private fun highlightSelectedYouTubeKey() {
+        val useB = binding.radioYouTubeProfileB.isChecked
+        binding.etStreamKey.setBackgroundResource(
+            if (useB) R.drawable.bg_settings_field else R.drawable.bg_settings_field_active
+        )
+        binding.etYouTubeKeyB.setBackgroundResource(
+            if (useB) R.drawable.bg_settings_field_active else R.drawable.bg_settings_field
+        )
+        // setBackgroundResource 會吃掉內距，補回來維持版面一致
+        val pad = (10 * resources.displayMetrics.density).toInt()
+        binding.etStreamKey.setPadding(pad, pad, pad, pad)
+        binding.etYouTubeKeyB.setPadding(pad, pad, pad, pad)
+    }
+
     /** v0.18.23：全功能使用教學——標題點一下展開／收起，預設收起，不佔設定頁版面。 */
     private fun setupGuide() {
         // v0.18.24：說明本文用 HTML（粗體小節標題＋縮排條列），純文字擠成一團看不出層次
@@ -179,7 +231,18 @@ class SettingsActivity : AppCompatActivity() {
         val eventNameLines = StreamPrefs.getEventName(this).split("\n")
         binding.etEventNameLine1.setText(eventNameLines.getOrElse(0) { "" })
         binding.etEventNameLine2.setText(eventNameLines.getOrElse(1) { "" })
-        binding.etStreamKey.setText(StreamPrefs.getStreamKey(this))
+        binding.etStreamKey.setText(StreamPrefs.getYouTubeKey(this, 1))
+        binding.etYouTubeKeyB.setText(StreamPrefs.getYouTubeKey(this, 2))
+        binding.etYouTubeLabelA.setText(StreamPrefs.getYouTubeLabel(this, 1))
+        binding.etYouTubeLabelB.setText(StreamPrefs.getYouTubeLabel(this, 2))
+        if (StreamPrefs.getYouTubeProfile(this) == 2) {
+            binding.radioYouTubeProfileB.isChecked = true
+        } else {
+            binding.radioYouTubeProfileA.isChecked = true
+        }
+        // v0.18.39：選用中的那組金鑰欄位改成金框藍底，一眼看得出開播會用哪一把
+        binding.radioGroupYouTubeProfile.setOnCheckedChangeListener { _, _ -> highlightSelectedYouTubeKey() }
+        highlightSelectedYouTubeKey()
         binding.etTeamHomeName.setText(StreamPrefs.getTeamHomeName(this))
         binding.etTeamAwayName.setText(StreamPrefs.getTeamAwayName(this))
         binding.etStreamKeyFacebook.setText(StreamPrefs.getFacebookStreamKey(this))

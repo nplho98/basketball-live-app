@@ -574,7 +574,7 @@
                 android:textColor="@color/white"
                 android:textSize="8sp" />
 
-            <!-- v0.18.27：牛測試鈕（暫時放這裡供 Boss 驗收：左上靜態牛開關／跑動牛播一次） -->
+            <!-- v0.18.35：只剩左上牛開關（跑動牛／慶祝動作已整組移除） -->
             <Button
                 android:id="@+id/btnToggleBull"
                 android:layout_width="80dp"
@@ -584,18 +584,6 @@
                 android:background="@drawable/bg_round_button_dark"
                 android:backgroundTint="@null"
                 android:text="@string/bull_toggle_button"
-                android:textColor="@color/white"
-                android:textSize="8sp" />
-
-            <Button
-                android:id="@+id/btnRunBull"
-                android:layout_width="80dp"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:paddingVertical="6dp"
-                android:background="@drawable/bg_round_button_dark"
-                android:backgroundTint="@null"
-                android:text="@string/bull_run_button"
                 android:textColor="@color/white"
                 android:textSize="8sp" />
 

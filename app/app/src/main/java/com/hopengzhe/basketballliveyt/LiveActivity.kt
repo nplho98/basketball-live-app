@@ -539,18 +539,22 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     }
 
     // v0.18.27：左上靜態牛可開關（測試鈕），關掉時 Bitmap 不長高、計分板回到沒有牛的原樣
-    private var showScoreboardBull = true
+    // v0.18.31：Boss 指定預設關閉，要看時自己按「左上牛 開/關」（打開時會眨兩下眼）
+    private var showScoreboardBull = false
 
-    // v0.18.27：八格跑步循環——牛從計分板左緣跑到客隊隊名上方。progress −1＝沒在跑。
-    private val bullRunFrames: List<Bitmap> by lazy {
+    // v0.18.30：眨眼五格（睜→微閉→半閉→全閉→回睜，Boss 提供的算圖）。與靜態牛共用同一個
+    // 裁切框，所以切格子時牛不會位移；index < 0＝顯示靜態睜眼那張。
+    private val bullBlinkFrames: List<Bitmap> by lazy {
         listOf(
-            R.drawable.bull_run_01, R.drawable.bull_run_02, R.drawable.bull_run_03, R.drawable.bull_run_04,
-            R.drawable.bull_run_05, R.drawable.bull_run_06, R.drawable.bull_run_07, R.drawable.bull_run_08
+            R.drawable.bull_blink_01, R.drawable.bull_blink_02, R.drawable.bull_blink_03,
+            R.drawable.bull_blink_04, R.drawable.bull_blink_05
         ).mapNotNull { BitmapFactory.decodeResource(resources, it) }
     }
-    private var bullRunProgress = -1f
-    private var bullRunFrameIndex = 0
-    private val bullRunHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var bullBlinkFrameIndex = -1
+
+    /** 眨眼播放中不讓開關再被按（v0.18.35 起只剩左上牛，跑動牛／慶祝動作整組移除）。 */
+    private var bullBusy = false
+    private val bullAnimHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     // v0.14.0：工作2——開播按鈕過渡期（按下開播確認～onConnectionSuccess／建立失敗退回之間），
     // 控制 btnLiveToggle 的灰色不可按狀態（見 setLiveButtonPending/setLiveUiState）。UX 功能，
@@ -1375,7 +1379,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
     /** 未登入、或帳號模式建立直播失敗時的備援：設定頁有填手動串流金鑰才改用該金鑰推流，否則提示錯誤原因。 */
     private suspend fun fallbackToManualKeyOrShowError(reasonMessage: String) {
-        val streamKey = StreamPrefs.getStreamKey(this).trim()
+        val streamKey = selectedYouTubeKey().trim()
         if (streamKey.isEmpty()) {
             Toast.makeText(
                 this, getString(R.string.live_fallback_no_manual_key_format, reasonMessage), Toast.LENGTH_LONG
@@ -1393,7 +1397,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * v0.14.0：改 suspend fun（工作3 治本連帶，見 [applyStreamSettingsAndStartPreview] KDoc）。
      */
     private suspend fun startLiveStreamWithManualKey(streamKeyOverride: String? = null) {
-        val streamKey = streamKeyOverride ?: StreamPrefs.getStreamKey(this).trim()
+        val streamKey = streamKeyOverride ?: selectedYouTubeKey().trim()
         if (streamKey.isEmpty()) {
             Toast.makeText(this, getString(R.string.live_no_account_no_key_message), Toast.LENGTH_LONG).show()
             // v0.14.0：工作2——未能進入任何連線流程，恢復可按的開播狀態；若是從
@@ -1435,7 +1439,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             StreamPrefs.PLATFORM_CUSTOM -> cleanStreamValue(StreamPrefs.getCustomStreamUrl(this))
                 .takeIf { isFullUrl(it) }
             // YouTube：金鑰欄位若被貼了完整網址也照用（相容 v0.18.16 之前的測試方式）
-            else -> cleanStreamValue(StreamPrefs.getStreamKey(this)).takeIf { isFullUrl(it) }
+            else -> cleanStreamValue(selectedYouTubeKey()).takeIf { isFullUrl(it) }
         }
     }
 
@@ -1445,6 +1449,26 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * 推流網址與金鑰本來就只會是可見的 ASCII 字元，其他一律濾掉。
      */
     private fun cleanStreamValue(raw: String): String = raw.trim().filter { it.code in 33..126 }
+
+    /**
+     * v0.18.38：目前選用的那一組 YouTube 金鑰（設定頁選帳號 A／B，各自帶自己的金鑰）。
+     * 順便比對該組上次登入的帳號：第一次用就記起來，之後不一致跳一次提醒，避免播錯頻道。
+     */
+    private fun selectedYouTubeKey(): String {
+        val profile = StreamPrefs.getYouTubeProfile(this)
+        val account = GoogleAuthManager.getAuthorizedAccount(this)?.email.orEmpty()
+        val recorded = StreamPrefs.getYouTubeAccount(this, profile)
+        if (account.isNotEmpty()) {
+            if (recorded.isEmpty()) {
+                StreamPrefs.saveYouTubeAccount(this, profile, account)
+            } else if (!recorded.equals(account, ignoreCase = true)) {
+                Toast.makeText(
+                    this, getString(R.string.live_yt_profile_mismatch_toast, account, recorded), Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+        return StreamPrefs.getYouTubeKey(this, profile)
+    }
 
     /**
      * 套用最新串流規格、更新 UI 狀態並實際呼叫 RootEncoder 開始推流（帳號模式與手動金鑰模式共用）。
@@ -2343,15 +2367,17 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // 長按本身就是防誤觸機制，不跳確認框；**直播中一律禁用**（Boss 指定），只有非直播能歸零。
         // v0.18.27：牛測試鈕（驗收用，之後再決定正式觸發時機）
         binding.btnToggleBull.setOnClickListener {
+            if (bullBusy) return@setOnClickListener
             showScoreboardBull = !showScoreboardBull
+            bullBlinkFrameIndex = -1
             refreshScoreboardOverlay()
+            if (showScoreboardBull) playBullBlink()
             Toast.makeText(
                 this,
                 getString(if (showScoreboardBull) R.string.bull_toggle_toast_on else R.string.bull_toggle_toast_off),
                 Toast.LENGTH_SHORT
             ).show()
         }
-        binding.btnRunBull.setOnClickListener { playBullRun() }
 
         binding.btnHomeMinus1.setOnLongClickListener { resetTeamScore(isHome = true); true }
         binding.btnAwayMinus1.setOnLongClickListener { resetTeamScore(isHome = false); true }
@@ -2624,15 +2650,14 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         val bitmapHeight = (streamHeightForOverlay * OVERLAY_HEIGHT_RATIO).toInt().coerceAtLeast(1)
         // v0.18.15：Bitmap 往上長出 [bullHeadroom] 放 Q 版牛；面板本身維持原尺寸並貼齊 Bitmap
         // 底部（濾鏡是 TranslateTo.BOTTOM 對齊），所以計分板在畫面上的位置與大小完全不變。
-        val bull = if (showScoreboardBull) scoreboardBullBitmap else null
-        val bullHeight = if (bull == null) 0f else bitmapHeight * BULL_HEIGHT_RATIO
+        val bull = if (!showScoreboardBull) null
+        else bullBlinkFrames.getOrNull(bullBlinkFrameIndex) ?: scoreboardBullBitmap
+        // v0.18.37：牛的空間**不論開關都固定保留**（關掉時就是透明的一塊）。Bitmap 高度一旦變動，
+        // 濾鏡沿用開播時設定的縮放比例，整條計分板就會被壓扁／下移（Boss 回報的變形就是這個）。
+        val bullHeight = bitmapHeight * BULL_HEIGHT_RATIO
         // v0.18.27：上方留白取「靜態牛」與「跑動牛」兩者需要的較大值，且不隨動畫變動——
         // Bitmap 高度一變，濾鏡底部對齊會讓整條計分板在畫面上跳動。
-        val runHeadroom = (bitmapHeight * (BULL_RUN_HEIGHT_RATIO - BULL_RUN_FOOT_OVERLAP_RATIO)).toInt()
-        val bullHeadroom = maxOf(
-            (bullHeight - bitmapHeight * BULL_OVERLAP_RATIO).toInt(),
-            runHeadroom
-        ).coerceAtLeast(0)
+        val bullHeadroom = (bullHeight - bitmapHeight * BULL_OVERLAP_RATIO).toInt().coerceAtLeast(0)
         val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight + bullHeadroom, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.translate(0f, bullHeadroom.toFloat())
@@ -2705,58 +2730,35 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             )
         }
 
-        // v0.18.27：跑動牛——從計分板左緣跑到客隊隊名上方，腳略微踩進面板上緣
-        val runFrame = bullRunFrames.getOrNull(bullRunFrameIndex)
-        if (bullRunProgress >= 0f && runFrame != null) {
-            val runHeight = bitmapHeight * BULL_RUN_HEIGHT_RATIO
-            val runWidth = runHeight * runFrame.width / runFrame.height
-            val startX = -runWidth * 0.5f
-            val endX = bitmapWidth * BULL_RUN_END_X_RATIO - runWidth / 2f
-            val left = startX + (endX - startX) * bullRunProgress.coerceIn(0f, 1f)
-            val bottom = bitmapHeight * BULL_RUN_FOOT_OVERLAP_RATIO
-            canvas.drawBitmap(
-                runFrame, null,
-                RectF(left, bottom - runHeight, left + runWidth, bottom),
-                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-            )
-        }
-
-        // 動畫進行中不寫出圖檔（一秒十幾張 PNG 純浪費）
-        if (BuildConfig.DEBUG && bullRunProgress < 0f) dumpOverlayPng(bitmap, "scoreboard_overlay.png")
+        if (BuildConfig.DEBUG) dumpOverlayPng(bitmap, "scoreboard_overlay.png")
         return bitmap
     }
 
     /**
-     * v0.18.27：跑動牛播一次——八格循環每 [BULL_RUN_FRAME_MS] 換一格，同時把水平位置往右推；
-     * 跑到客隊隊名上方後停留 [BULL_RUN_HOLD_MS] 再收掉。只重畫計分板 Bitmap，不碰編碼器。
+     * v0.18.30：左上牛出現時眨兩下——每下走「微閉→半閉→全閉→半閉→回睜→睜」，
+     * 兩下之間停一拍。圖檔缺就直接維持睜眼，不影響計分板。
      */
-    private fun playBullRun() {
-        if (bullRunProgress >= 0f) return
-        if (bullRunFrames.isEmpty()) {
-            Toast.makeText(this, getString(R.string.bull_run_missing_toast), Toast.LENGTH_SHORT).show()
-            return
+    private fun playBullBlink(times: Int = 2) {
+        if (bullBlinkFrames.size < 5) return
+        // 一格＝一個畫格索引，−1 代表睜眼（用靜態圖）
+        val oneBlink = listOf(1, 2, 3, 2, 4, -1)
+        val sequence = mutableListOf<Int>()
+        repeat(times) {
+            sequence.addAll(oneBlink)
+            sequence.add(-1)  // 兩下之間停一拍
         }
-        bullRunProgress = 0f
-        bullRunFrameIndex = 0
-        val steps = (BULL_RUN_DURATION_MS / BULL_RUN_FRAME_MS).toInt().coerceAtLeast(1)
-        val tick = object : Runnable {
-            override fun run() {
-                bullRunProgress += 1f / steps
-                bullRunFrameIndex = (bullRunFrameIndex + 1) % bullRunFrames.size
-                if (bullRunProgress >= 1f) {
-                    bullRunProgress = 1f
-                    refreshScoreboardOverlay()
-                    bullRunHandler.postDelayed({
-                        bullRunProgress = -1f
-                        refreshScoreboardOverlay()
-                    }, BULL_RUN_HOLD_MS)
-                    return
-                }
+        bullBusy = true
+        binding.btnToggleBull.isEnabled = false
+        sequence.forEachIndexed { step, frame ->
+            bullAnimHandler.postDelayed({
+                bullBlinkFrameIndex = frame
                 refreshScoreboardOverlay()
-                bullRunHandler.postDelayed(this, BULL_RUN_FRAME_MS)
-            }
+                if (step == sequence.lastIndex) {
+                    bullBusy = false
+                    binding.btnToggleBull.isEnabled = true
+                }
+            }, BULL_BLINK_FRAME_MS * step)
         }
-        bullRunHandler.postDelayed(tick, BULL_RUN_FRAME_MS)
     }
 
     /**
@@ -4040,12 +4042,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         const val BULL_LEFT_RATIO = 0.15f        // 牛左緣離面板左緣的距離
 
         // v0.18.27：跑動牛（八格循環）——高度／落腳深度同樣相對面板高度，終點相對面板寬度
-        const val BULL_RUN_HEIGHT_RATIO = 2.60f       // 跑動牛高度（v0.18.28 Boss 指定放大一倍）
-        const val BULL_RUN_FOOT_OVERLAP_RATIO = 0.18f // 腳踩進面板上緣的深度
-        const val BULL_RUN_END_X_RATIO = 0.86f        // 終點＝客隊隊名上方
-        const val BULL_RUN_FRAME_MS = 90L             // 每格停留時間
-        const val BULL_RUN_DURATION_MS = 2700L        // 從左跑到終點的總時間
-        const val BULL_RUN_HOLD_MS = 1500L            // 到終點後停留多久才收掉
+
+        // v0.18.30：左上牛出現時的眨眼——每格停留時間
+        const val BULL_BLINK_FRAME_MS = 80L
+
+        // v0.18.32：慶祝動作（爬出計分板＋後空翻＋射手手勢）
 
         // v0.18.15：節數上限＝正規四節＋三次延長（第 5～7 節顯示 OT1～OT3，見 periodLabel）
         const val MAX_PERIOD = StreamPrefs.PERIOD_SLOT_COUNT

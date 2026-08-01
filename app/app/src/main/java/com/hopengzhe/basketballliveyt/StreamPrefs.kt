@@ -22,6 +22,15 @@ object StreamPrefs {
     private const val KEY_BITRATE = "bitrate"
     private const val KEY_BITRATE_AUTO_ADJUST = "bitrate_auto_adjust"
     private const val KEY_STREAM_KEY = "stream_key"
+    // v0.18.38：YouTube 兩組帳號——A 組金鑰沿用 KEY_STREAM_KEY（舊設定不用搬）
+    private const val KEY_YT_PROFILE = "yt_profile"
+    private const val KEY_YT_LABEL_A = "yt_label_a"
+    private const val KEY_YT_LABEL_B = "yt_label_b"
+    private const val KEY_YT_KEY_B = "yt_key_b"
+    private const val KEY_KEYS_LOCKED = "keys_locked"
+    private const val KEY_YT_ACCOUNT_A = "yt_account_a"
+    private const val KEY_YT_ACCOUNT_B = "yt_account_b"
+
     private const val KEY_STREAM_KEY_FACEBOOK = "stream_key_facebook"
     private const val KEY_FACEBOOK_SERVER_URL = "facebook_server_url"
     private const val KEY_STREAM_KEY_CUSTOM = "stream_key_custom"
@@ -154,6 +163,45 @@ object StreamPrefs {
 
     /** 開發測試用的 YouTube 串流金鑰，未來會改由帳號登入自動取得。 */
     fun getStreamKey(context: Context): String = prefs(context).getString(KEY_STREAM_KEY, "") ?: ""
+
+    // ---------- v0.18.38：YouTube 兩組帳號設定（Boss 指定：選 A 就整組帶 A 的金鑰） ----------
+
+    /** 目前選用的組別：1＝帳號 A、2＝帳號 B。 */
+    fun getYouTubeProfile(context: Context): Int = prefs(context).getInt(KEY_YT_PROFILE, 1)
+
+    /** v0.18.40：金鑰欄位是否鎖定（預設鎖住，要改先解鎖）。 */
+    fun isKeyFieldsLocked(context: Context): Boolean = prefs(context).getBoolean(KEY_KEYS_LOCKED, true)
+
+    fun saveKeyFieldsLocked(context: Context, locked: Boolean) {
+        prefs(context).edit().putBoolean(KEY_KEYS_LOCKED, locked).apply()
+    }
+
+    /** 組別名稱（自己取，例如「校隊頻道」），空字串時由 UI 顯示預設字樣。 */
+    fun getYouTubeLabel(context: Context, profile: Int): String =
+        prefs(context).getString(if (profile == 2) KEY_YT_LABEL_B else KEY_YT_LABEL_A, "") ?: ""
+
+    /** 該組的串流金鑰；A 組沿用舊的 [KEY_STREAM_KEY]，舊設定直接相容不用重貼。 */
+    fun getYouTubeKey(context: Context, profile: Int): String =
+        if (profile == 2) prefs(context).getString(KEY_YT_KEY_B, "") ?: "" else getStreamKey(context)
+
+    /** 該組上次實際登入直播用的 Google 帳號（開播成功時自動記下，供切組時比對提醒）。 */
+    fun getYouTubeAccount(context: Context, profile: Int): String =
+        prefs(context).getString(if (profile == 2) KEY_YT_ACCOUNT_B else KEY_YT_ACCOUNT_A, "") ?: ""
+
+    fun saveYouTubeAccount(context: Context, profile: Int, email: String) {
+        prefs(context).edit()
+            .putString(if (profile == 2) KEY_YT_ACCOUNT_B else KEY_YT_ACCOUNT_A, email)
+            .apply()
+    }
+
+    fun saveYouTubeProfiles(context: Context, profile: Int, labelA: String, labelB: String, keyB: String) {
+        prefs(context).edit()
+            .putInt(KEY_YT_PROFILE, profile)
+            .putString(KEY_YT_LABEL_A, labelA)
+            .putString(KEY_YT_LABEL_B, labelB)
+            .putString(KEY_YT_KEY_B, keyB)
+            .apply()
+    }
 
     /**
      * v0.18.17：三個平台各存各的金鑰，切平台不用重貼（Boss 指定）。

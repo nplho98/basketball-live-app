@@ -345,18 +345,96 @@
             android:textSize="13sp"
             android:textStyle="bold" />
 
+        <!-- v0.18.40：金鑰欄位鎖定鈕——鎖定時 YT/FB 的金鑰與網址不能改，避免比賽前誤觸改壞 -->
+        <Button
+            android:id="@+id/btnLockKeys"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingVertical="10dp"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/bg_round_button_dark"
+            android:backgroundTint="@null"
+            android:text="@string/settings_keys_locked_button"
+            android:textColor="@color/white"
+            android:textSize="13sp" />
+
+        <!-- v0.18.38：YouTube 兩組帳號——選哪一組就整組帶入（名稱＋金鑰），Boss 指定 -->
+        <RadioGroup
+            android:id="@+id/radioGroupYouTubeProfile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <RadioButton
+                android:id="@+id/radioYouTubeProfileA"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_yt_profile_a"
+                android:textColor="@color/white"
+                android:textSize="13sp" />
+
+            <RadioButton
+                android:id="@+id/radioYouTubeProfileB"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_yt_profile_b"
+                android:textColor="@color/white"
+                android:textSize="13sp" />
+
+        </RadioGroup>
+
+        <EditText
+            android:id="@+id/etYouTubeLabelA"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
+            android:hint="@string/settings_yt_label_a_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="text"
+            android:maxLength="10"
+            android:layout_marginTop="4dp" />
+
         <EditText
             android:id="@+id/etStreamKey"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_settings_field"
             android:padding="10dp"
-            android:hint="@string/settings_stream_key_hint"
+            android:hint="@string/settings_yt_key_a_hint"
             android:textColorHint="@color/text_secondary"
             android:textColor="@color/white"
             android:inputType="textVisiblePassword"
-            android:layout_marginTop="4dp"
-        />
+            android:layout_marginTop="2dp" />
+
+        <EditText
+            android:id="@+id/etYouTubeLabelB"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
+            android:hint="@string/settings_yt_label_b_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="text"
+            android:maxLength="10"
+            android:layout_marginTop="10dp" />
+
+        <EditText
+            android:id="@+id/etYouTubeKeyB"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_field"
+            android:padding="10dp"
+            android:hint="@string/settings_yt_key_b_hint"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/white"
+            android:inputType="textVisiblePassword"
+            android:layout_marginTop="2dp" />
 
         <!-- v0.18.17：FB／自訂各一格，切平台不用重貼（Boss 指定） -->
         <!-- v0.18.20：區塊分隔線（黑底上分辨每個設定項，Boss 指定） -->

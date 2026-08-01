@@ -82,8 +82,6 @@
 
     <!-- v0.18.27：牛測試鈕（驗收用） -->
     <string name="bull_toggle_button">左上牛 開/關</string>
-    <string name="bull_run_button">跑動牛 播一次</string>
-    <string name="bull_run_missing_toast">跑動牛圖檔載入失敗</string>
     <string name="bull_toggle_toast_on">左上牛：顯示</string>
     <string name="bull_toggle_toast_off">左上牛：隱藏</string>
 
@@ -232,8 +230,19 @@
     <string name="settings_event_name_label">賽事名稱（燒入計分板左側）</string>
     <string name="settings_event_name_line1_hint">第一行（最多12字，留空則整塊不顯示）</string>
     <string name="settings_event_name_line2_hint">第二行（最多12字，可留空）</string>
-    <string name="settings_stream_key_label">YouTube 串流金鑰</string>
+    <string name="settings_stream_key_label">YouTube 帳號組（選一組使用）</string>
     <string name="settings_stream_key_hint">貼上 YouTube 串流金鑰（登入帳號則免填）</string>
+    <!-- v0.18.38：兩組 YouTube 設定，選哪組就用哪組的金鑰 -->
+    <!-- v0.18.40：金鑰欄位鎖定 -->
+    <string name="settings_keys_locked_button">🔒 金鑰欄位已鎖定（點一下解鎖修改）</string>
+    <string name="settings_keys_unlocked_button">🔓 金鑰欄位可修改（點一下鎖回去）</string>
+    <string name="settings_yt_profile_a">使用帳號 A</string>
+    <string name="settings_yt_profile_b">使用帳號 B</string>
+    <string name="settings_yt_label_a_hint">帳號 A 名稱（例：校隊頻道）</string>
+    <string name="settings_yt_key_a_hint">帳號 A 的串流金鑰（登入帳號則免填）</string>
+    <string name="settings_yt_label_b_hint">帳號 B 名稱（例：個人頻道）</string>
+    <string name="settings_yt_key_b_hint">帳號 B 的串流金鑰（登入帳號則免填）</string>
+    <string name="live_yt_profile_mismatch_toast">目前登入 %1$s，與這組設定記錄的 %2$s 不同，若要換帳號請到設定頁登出切換</string>
     <string name="settings_stream_key_note">三個平台各存各的金鑰，換平台不用重貼</string>
     <!-- v0.18.17：FB／自訂各自獨立的金鑰欄 -->
     <string name="settings_stream_key_facebook_label">Facebook 串流金鑰</string>
