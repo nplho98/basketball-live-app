@@ -279,13 +279,6 @@ import java.util.Locale
  *      追蹤，只有仍是最新序號時才會真正 addFilter/removeFilter，避免 remove/add 因非同步佇列
  *      （`GlStreamInterface.filterQueue`）處理順序被打亂而重覆疊加或誤刪（見
  *      `playBullChargeAnimation`，此套機制已於 v0.14.1 隨公牛動畫整段移除）。
- *   4. 測速顯示 0M／曲線前段空白：[NetworkSpeedTester.CURVE_CHUNK_BYTES] 512KB → 128KB
- *      （取樣密度×4）；新增暖身塊（`WARMUP_CHUNK_BYTES` 64KB，結果不計入量測，讓 TLS 握手／TCP
- *      slow start 不拖慢第一個正式取樣塊）；[SettingsActivity.runNetworkDetection] 取樣點時間戳
- *      超出量測時長就不畫進曲線（避免慢網路單一區塊耗時過久，座標算到畫面外整條線消失），數值
- *      仍照樣計入建議規格判斷；有效（非 0）樣本為 0 個時視為測速失敗，顯示新字串
- *      `settings_detect_network_all_failed_message`，不再拿 0（上傳失敗的記錄值，並非真實網速）
- *      去算出誤導性的建議規格。
  * - v0.13.0：三項新功能（計畫書 `計畫書_bug修復與標記休息輪播遙控_2026-07-16.md` 第二波），皆採
  *   「UI 空殼先行」原則，核心引擎先做最簡可動版——
  *   1. 精彩時刻標記（v0.18.15 起改由主隊 +1/+2/+3 自動記，見 [changeScoreHome]／[addHighlightMarker]，
@@ -614,7 +607,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private var quarterScoresAway = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
     // 休息畫面狀態：是否休息中、全螢幕休息畫面濾鏡（做法同計分板 overlay，見 buildBreakScreenBitmap）
     private var isBreakMode = false
-    private val breakScreenFilter = ImageObjectFilterRender()
+    private var breakScreenFilter = ImageObjectFilterRender()
+    private var lastBreakScreenContentSignature: BreakScreenContentSignature? = null
+    private var breakFadeJob: Job? = null
     // 休息中是否成功停了相機（順位2）；恢復時據此決定是否要重開相機（見 stopCameraForBreak/resumeCameraAfterBreak）
     private var breakCameraStopped = false
     private var breakSavedCameraId: String? = null
@@ -2495,27 +2490,25 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     }
 
     /**
-     * v0.16.0：功能三——節數 +1 當下把剛打完那一節（[finishedPeriod]）結算：
-     * 該節分數＝目前總分 − 已結算各節加總（兩隊各自）。固定 4 節，超過第 4 節不再結算（見計畫書「不做加時」）。
+     * v0.16.0：功能三——節數 +1 當下把剛打完那一節（[finishedPeriod]）結算。
+     * v0.18.41：若該節已有結算值，代表只是誤按回退後返回，保留原值以免把下一節得分併入前一節。
      */
     private fun settleQuarterOnAdvance(finishedPeriod: Int) {
-        val index = finishedPeriod - 1
-        if (index !in 0 until StreamPrefs.PERIOD_SLOT_COUNT) return
-        val settledHome = quarterScoresHome.filter { it >= 0 }.sum()
-        val settledAway = quarterScoresAway.filter { it >= 0 }.sum()
-        quarterScoresHome[index] = (scoreHome - settledHome).coerceAtLeast(0)
-        quarterScoresAway[index] = (scoreAway - settledAway).coerceAtLeast(0)
+        QuarterScoreSettlement.settleOnAdvance(
+            finishedPeriod,
+            scoreHome,
+            scoreAway,
+            quarterScoresHome,
+            quarterScoresAway
+        )
     }
 
     /**
-     * v0.16.0：功能三——節數 −1（誤切回退）當下對稱收回：清掉「回退後要重新打的那一節」（[newPeriod]）
-     * 的結算，分數回到未結算狀態（顯示「–」），與 [settleQuarterOnAdvance] 對稱。
+     * v0.18.41：節數 −1 只回退顯示節數，不清除既有結算。結算值是無法由目前總分正確重建的歷史資料；
+     * 保留它可讓誤按「減」再按「加」完全不改變各節得分。
      */
     private fun settleQuarterOnRewind(newPeriod: Int) {
-        val index = newPeriod - 1
-        if (index !in 0 until StreamPrefs.PERIOD_SLOT_COUNT) return
-        quarterScoresHome[index] = -1
-        quarterScoresAway[index] = -1
+        QuarterScoreSettlement.settleOnRewind(newPeriod, quarterScoresHome, quarterScoresAway)
     }
 
     private fun persistQuarterScores() {
@@ -2603,8 +2596,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      */
     private fun applyScoreboardOverlayFilter() {
         if (streamWidthForOverlay <= 0 || streamHeightForOverlay <= 0) return
+        val overlayBase = overlayBaseResolution()
         scoreboardOverlayFilter.setImage(buildScoreboardOverlayBitmap())
-        scoreboardOverlayFilter.setDefaultScale(streamWidthForOverlay, streamHeightForOverlay)
+        scoreboardOverlayFilter.setDefaultScale(overlayBase.width, overlayBase.height)
         scoreboardOverlayFilter.setPosition(TranslateTo.BOTTOM)
         rtmpCamera2.getGlInterface().setFilter(scoreboardOverlayFilter)
     }
@@ -2617,8 +2611,30 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun refreshScoreboardOverlay() {
         if (streamWidthForOverlay <= 0 || streamHeightForOverlay <= 0) return
         scoreboardOverlayFilter.setImage(buildScoreboardOverlayBitmap())
-        // v0.16.0：功能三——休息中時分數／節數／隊名變動同步重繪休息畫面（各節分數即時反映）
-        if (isBreakMode) breakScreenFilter.setImage(buildBreakScreenBitmap())
+        // v0.18.46：休息畫面不含牛；眨眼 14 格只更新計分板時，不再反覆配置與上傳 1080p Bitmap。
+        if (isBreakMode) {
+            val signature = calculateBreakScreenContentSignature()
+            if (signature != lastBreakScreenContentSignature) {
+                breakScreenFilter.setImage(buildBreakScreenBitmap())
+                lastBreakScreenContentSignature = signature
+            }
+        }
+    }
+
+    private fun calculateBreakScreenContentSignature(): BreakScreenContentSignature {
+        val overlayBase = overlayBaseResolution()
+        return BreakScreenContentSignature.calculate(
+            teamHomeName = teamHomeName,
+            teamAwayName = teamAwayName,
+            scoreHome = scoreHome,
+            scoreAway = scoreAway,
+            quarterScoresHome = quarterScoresHome,
+            quarterScoresAway = quarterScoresAway,
+            period = period,
+            tableColumnCount = breakTableColumnCount(),
+            baseWidth = overlayBase.width,
+            baseHeight = overlayBase.height
+        )
     }
 
     /**
@@ -2646,8 +2662,16 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * Bitmap 尺寸依目前串流解析度等比例縮放，確保各解析度下比例一致。
      */
     private fun buildScoreboardOverlayBitmap(): Bitmap {
-        val bitmapWidth = (streamWidthForOverlay * OVERLAY_WIDTH_RATIO).toInt().coerceAtLeast(1)
-        val bitmapHeight = (streamHeightForOverlay * OVERLAY_HEIGHT_RATIO).toInt().coerceAtLeast(1)
+        val overlayBase = overlayBaseResolution()
+        val overlayBitmapSize = OverlaySizing.overlayBitmapSize(
+            streamWidthForOverlay,
+            streamHeightForOverlay,
+            overlayBase,
+            OVERLAY_WIDTH_RATIO,
+            OVERLAY_HEIGHT_RATIO
+        )
+        val bitmapWidth = overlayBitmapSize.width
+        val bitmapHeight = overlayBitmapSize.height
         // v0.18.15：Bitmap 往上長出 [bullHeadroom] 放 Q 版牛；面板本身維持原尺寸並貼齊 Bitmap
         // 底部（濾鏡是 TranslateTo.BOTTOM 對齊），所以計分板在畫面上的位置與大小完全不變。
         val bull = if (!showScoreboardBull) null
@@ -2733,6 +2757,13 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         if (BuildConfig.DEBUG) dumpOverlayPng(bitmap, "scoreboard_overlay.png")
         return bitmap
     }
+
+    private fun overlayBaseResolution(): OverlaySizing.BaseResolution = OverlaySizing.baseResolution(
+        streamWidthForOverlay,
+        streamHeightForOverlay,
+        RECORD_DEFAULT_WIDTH,
+        RECORD_DEFAULT_HEIGHT
+    )
 
     /**
      * v0.18.30：左上牛出現時眨兩下——每下走「微閉→半閉→全閉→半閉→回睜→睜」，
@@ -3647,10 +3678,15 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         resetBitrateWarningEpoch(armRecovering = false)
         DiagLogger.log(this, "BREAK", "進入休息，碼率警告 epoch 重設")
         // 1. 全螢幕休息畫面濾鏡疊到最上層（addFilter 走 filterQueue，執行緒安全，避開 stop() 的競態坑）
-        breakScreenFilter.setImage(buildBreakScreenBitmap())
-        breakScreenFilter.setScale(100f, 100f)
-        breakScreenFilter.setPosition(TranslateTo.CENTER)
-        rtmpCamera2.getGlInterface().addFilter(breakScreenFilter)
+        val fadeFilter = ImageObjectFilterRender()
+        breakScreenFilter = fadeFilter
+        fadeFilter.setImage(buildBreakScreenBitmap())
+        lastBreakScreenContentSignature = calculateBreakScreenContentSignature()
+        fadeFilter.setAlpha(0f)
+        fadeFilter.setScale(100f, 100f)
+        fadeFilter.setPosition(TranslateTo.CENTER)
+        rtmpCamera2.getGlInterface().addFilter(fadeFilter)
+        startBreakFade(fadeIn = true, filter = fadeFilter)
         // 2.+3. 停相機降溫（順位2）＋強制算圖：v0.16.3 Boss 直播實測——停相機後畫面凍結在按下
         //    當下的最後一幀，setForceRender 在 Camera2Base 舊管線上並沒有真的驅動 GL 續送幀
         //    （濾鏡佇列也因此不被消化，休息畫面根本沒套上；中場久了 YT 還會判定斷流）。
@@ -3699,14 +3735,50 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             breakCameraStopped = false
             binding.openGlView.setForceRender(false)
         }
-        // 3. 移除休息畫面濾鏡，露出鏡頭畫面（removeFilter 走 filterQueue，執行緒安全）
-        try {
-            rtmpCamera2.getGlInterface().removeFilter(breakScreenFilter)
-        } catch (e: Exception) {
-            // 濾鏡已不在鏈上（例如 replaceView 重建過）時忽略即可
-        }
+        // 3. 先把休息畫面攤成多階淡出，完成或取消時都移除該次濾鏡，避免殘留後重複掛載。
+        startBreakFade(fadeIn = false, filter = breakScreenFilter)
         binding.btnBreakScreen.text = getString(R.string.break_screen_button)
         Toast.makeText(this, getString(R.string.break_exited_toast), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun startBreakFade(fadeIn: Boolean, filter: ImageObjectFilterRender) {
+        breakFadeJob?.cancel()
+        binding.btnBreakScreen.isEnabled = false
+        breakFadeJob = lifecycleScope.launch {
+            val direction = if (fadeIn) "淡入" else "淡出"
+            val startedAtEpochMs = System.currentTimeMillis()
+            val startedAtElapsedMs = SystemClock.elapsedRealtime()
+            var appliedSteps = 0
+            DiagLogger.log(
+                this@LiveActivity,
+                "BREAK-FADE",
+                "$direction 開始 epochMs=$startedAtEpochMs durationMs=$BREAK_FADE_DURATION_MS steps=$BREAK_FADE_STEPS"
+            )
+            try {
+                for (step in 1..BREAK_FADE_STEPS) {
+                    delay(BREAK_FADE_DURATION_MS / BREAK_FADE_STEPS)
+                    val progress = step.toFloat() / BREAK_FADE_STEPS
+                    filter.setAlpha(if (fadeIn) progress else 1f - progress)
+                    appliedSteps = step
+                }
+            } finally {
+                if (!fadeIn) {
+                    try {
+                        rtmpCamera2.getGlInterface().removeFilter(filter)
+                    } catch (e: Exception) {
+                        // 濾鏡已不在鏈上（例如 replaceView 重建過）時忽略即可
+                    }
+                }
+                val endedAtEpochMs = System.currentTimeMillis()
+                val actualDurationMs = SystemClock.elapsedRealtime() - startedAtElapsedMs
+                DiagLogger.log(
+                    this@LiveActivity,
+                    "BREAK-FADE",
+                    "$direction 結束 epochMs=$endedAtEpochMs durationMs=$actualDurationMs appliedSteps=$appliedSteps"
+                )
+                binding.btnBreakScreen.isEnabled = true
+            }
+        }
     }
 
     /**
@@ -3779,8 +3851,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * （v0.16.2：Boss 拍板由樣式09 改樣式06，原左欄賽事名稱欄取消）
      */
     private fun buildBreakScreenBitmap(): Bitmap {
-        val frameWidth = streamWidthForOverlay.coerceAtLeast(1)
-        val frameHeight = streamHeightForOverlay.coerceAtLeast(1)
+        val overlayBase = overlayBaseResolution()
+        val frameWidth = overlayBase.width
+        val frameHeight = overlayBase.height
         val bitmap = Bitmap.createBitmap(frameWidth, frameHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.BLACK)
@@ -4143,5 +4216,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // （setForceRender 在 Camera2Base 舊管線沒真的驅動 GL 續送幀），先停用一律走順位3
         // 只遮畫面；日後查出正確用法再開回（見 enterBreakMode）
         const val BREAK_STOP_CAMERA_ENABLED = false
+        const val BREAK_FADE_DURATION_MS = 1800L
+        const val BREAK_FADE_STEPS = 54
     }
 }

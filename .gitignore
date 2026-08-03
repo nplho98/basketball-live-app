@@ -9,3 +9,6 @@ nul
 
 # 分享用 APK（可重新編譯產生）
 APK/
+
+# AI 協作信箱（含反編譯用的 aar/jar 等二進位產物，不進 git）
+.ai-sync/

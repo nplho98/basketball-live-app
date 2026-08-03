@@ -225,8 +225,8 @@
     <string name="settings_title_final_label">本次直播標題（開播實際使用，可在此微調）</string>
 
     <!-- v0.16.0：功能二——不延遲最低設定一鍵套用 -->
-    <string name="settings_low_latency_button">不延遲最低設定（720P／30fps／2300Kbps）</string>
-    <string name="settings_low_latency_applied_toast">已套用不延遲最低設定（720P／30fps／2300Kbps）</string>
+    <string name="settings_low_latency_button">不延遲最低設定（720P／30fps／3300Kbps）</string>
+    <string name="settings_low_latency_applied_toast">已套用不延遲最低設定（720P／30fps／3300Kbps）</string>
     <string name="settings_event_name_label">賽事名稱（燒入計分板左側）</string>
     <string name="settings_event_name_line1_hint">第一行（最多12字，留空則整塊不顯示）</string>
     <string name="settings_event_name_line2_hint">第二行（最多12字，可留空）</string>
@@ -261,7 +261,7 @@
     <string name="settings_team_home_hint">主隊名稱（最多 4 字，留空用預設）</string>
     <string name="settings_team_away_hint">客隊名稱（最多 4 字，留空用預設）</string>
     <string name="settings_team_names_note">存檔後回直播畫面即帶入計分板；也可直接點畫面下方的隊名修改</string>
-    <string name="settings_guide_body"><![CDATA[<b>直播平台</b><br/>&#8195;•&#160;<b>YouTube</b>：登入 Google 帳號自動建立直播，可用「分享直播」傳觀看網址<br/>&#8195;•&#160;<b>Facebook</b>：先到 FB 建立直播（串流軟體模式），把該頁的「伺服器網址」「串流金鑰」分別填到本頁兩格<br/>&#8195;•&#160;<b>自訂</b>：整條 rtmp:// 或 rtmps:// 網址（含金鑰）貼進對應欄位，可推 Twitch 等<br/>&#8195;•&#160;三個平台的金鑰各自保存，換平台不用重貼<br/>&#8195;•&#160;FB／自訂沒有觀看網址可分享，收播請自行到該平台結束直播<br/>&#8195;•&#160;金鑰從網頁複製時，注意尾巴不要夾帶多餘符號<br/><br/><b>計分</b><br/>&#8195;•&#160;左下＝主隊、右下＝客隊，各有加減分按鈕<br/>&#8195;•&#160;長按 −1＝該隊分數歸零<br/>&#8195;•&#160;長按「節數 −」＝節數回第 1 節<br/>&#8195;•&#160;以上兩個長按<b>直播中禁用</b>，需先收播<br/>&#8195;•&#160;點畫面下方的隊名可直接改隊名<br/>&#8195;•&#160;左側「分數清零／犯規清零／節數清零」一次全部歸零<br/><br/><b>節數與延長賽</b><br/>&#8195;•&#160;第 1～4 節顯示「第 N 節」<br/>&#8195;•&#160;第 5～7 節顯示 OT1／OT2／OT3，最多到第 7 節<br/>&#8195;•&#160;犯規每隊最多 4 格燈號<br/><br/><b>精彩標記</b><br/>&#8195;•&#160;主隊按 +1／+2／+3 自動記一筆「主隊名 N 號：X 分」（僅直播中）<br/>&#8195;•&#160;右下「移除標記」每按一次刪掉最近加入的一筆<br/>&#8195;•&#160;「標記回推秒數」＝標記時間往前推幾秒，抓得到進球前動作<br/>&#8195;•&#160;收播後自動跳清單：±5 秒微調／刪除／複製章節格式／分享 LINE<br/><br/><b>休息畫面</b><br/>&#8195;•&#160;右下「休息畫面」切換黑底計分表，直播不中斷、相機暫停降溫<br/>&#8195;•&#160;再按一次（顯示「返回直播」）回到比賽畫面<br/>&#8195;•&#160;休息中分數／節數變動會即時反映在計分表<br/><br/><b>畫質與網路</b><br/>&#8195;•&#160;解析度／FPS／碼率在本頁設定，開播時套用<br/>&#8195;•&#160;「一鍵測速」實測上傳速度並建議規格<br/>&#8195;•&#160;「碼率自動調整」開＝塞車時自動降碼率保住連線；關＝固定送設定值<br/>&#8195;•&#160;畫面上「固定 X Mbps｜送出 Y Mbps」，靜止畫面送出值下降屬正常<br/>&#8195;•&#160;錄影固定 1080p30／20 Mbps，與直播互不影響，存到手機 Downloads<br/><br/><b>畫面控制</b><br/>&#8195;•&#160;上／左／右三個面板都可收合，收合後點螢幕邊緣把手展開<br/>&#8195;•&#160;右側可調曝光、定焦鎖定；畫面雙指縮放變焦<br/>&#8195;•&#160;機身過熱時右上角出現溫度警示，可降碼率或改用休息畫面降溫]]></string>
+    <string name="settings_guide_body"><![CDATA[<b>直播平台</b><br/>&#8195;•&#160;<b>YouTube</b>：登入 Google 帳號自動建立直播，可用「分享直播」傳觀看網址<br/>&#8195;•&#160;<b>Facebook</b>：先到 FB 建立直播（串流軟體模式），把該頁的「伺服器網址」「串流金鑰」分別填到本頁兩格<br/>&#8195;•&#160;<b>自訂</b>：整條 rtmp:// 或 rtmps:// 網址（含金鑰）貼進對應欄位，可推 Twitch 等<br/>&#8195;•&#160;三個平台的金鑰各自保存，換平台不用重貼<br/>&#8195;•&#160;FB／自訂沒有觀看網址可分享，收播請自行到該平台結束直播<br/>&#8195;•&#160;金鑰從網頁複製時，注意尾巴不要夾帶多餘符號<br/><br/><b>計分</b><br/>&#8195;•&#160;左下＝主隊、右下＝客隊，各有加減分按鈕<br/>&#8195;•&#160;長按 −1＝該隊分數歸零<br/>&#8195;•&#160;長按「節數 −」＝節數回第 1 節<br/>&#8195;•&#160;以上兩個長按<b>直播中禁用</b>，需先收播<br/>&#8195;•&#160;點畫面下方的隊名可直接改隊名<br/>&#8195;•&#160;左側「分數清零／犯規清零／節數清零」一次全部歸零<br/><br/><b>節數與延長賽</b><br/>&#8195;•&#160;第 1～4 節顯示「第 N 節」<br/>&#8195;•&#160;第 5～7 節顯示 OT1／OT2／OT3，最多到第 7 節<br/>&#8195;•&#160;犯規每隊最多 4 格燈號<br/><br/><b>精彩標記</b><br/>&#8195;•&#160;主隊按 +1／+2／+3 自動記一筆「主隊名 N 號：X 分」（僅直播中）<br/>&#8195;•&#160;右下「移除標記」每按一次刪掉最近加入的一筆<br/>&#8195;•&#160;「標記回推秒數」＝標記時間往前推幾秒，抓得到進球前動作<br/>&#8195;•&#160;收播後自動跳清單：±5 秒微調／刪除／複製章節格式／分享 LINE<br/><br/><b>休息畫面</b><br/>&#8195;•&#160;右下「休息畫面」切換黑底計分表，直播不中斷、相機暫停降溫<br/>&#8195;•&#160;再按一次（顯示「返回直播」）回到比賽畫面<br/>&#8195;•&#160;休息中分數／節數變動會即時反映在計分表<br/><br/><b>畫質與網路</b><br/>&#8195;•&#160;解析度／FPS／碼率在本頁設定，開播時套用<br/>&#8195;•&#160;「碼率自動調整」開＝塞車時自動降碼率保住連線；關＝固定送設定值<br/>&#8195;•&#160;畫面上「固定 X Mbps｜送出 Y Mbps」，靜止畫面送出值下降屬正常<br/>&#8195;•&#160;錄影固定 1080p30／20 Mbps，與直播互不影響，存到手機 Downloads<br/><br/><b>畫面控制</b><br/>&#8195;•&#160;上／左／右三個面板都可收合，收合後點螢幕邊緣把手展開<br/>&#8195;•&#160;右側可調曝光、定焦鎖定；畫面雙指縮放變焦<br/>&#8195;•&#160;機身過熱時右上角出現溫度警示，可降碼率或改用休息畫面降溫]]></string>
 
     <!-- v0.18.16：直播平台選擇（見 StreamPrefs.PLATFORM_*／LiveActivity.resolveCustomRtmpUrl） -->
     <string name="settings_live_platform_label">直播平台</string>
@@ -284,15 +284,6 @@
     <string name="settings_account_signed_out">尚未登入，開播將改用手動串流金鑰</string>
     <string name="settings_switch_account_button">登出／切換 Google 帳號</string>
     <string name="settings_signed_out_toast">已登出，下次進入 APP 需重新登入</string>
-
-    <string name="settings_detect_network_button">偵測網路並建議設定</string>
-    <string name="settings_detect_network_testing">測速中…</string>
-    <string name="settings_detect_network_testing_hint">正在連續實測上傳速度（共 10 秒，如下方曲線）…</string>
-    <string name="settings_detect_network_progress_format">已測試 %1$d/10 秒，目前上傳速度：%2$.1f Mbps</string>
-    <string name="settings_detect_network_result_format">10 秒測速完成（已排除極端尖峰），參考上傳速度：%1$.1f Mbps，已依此套用建議設定（解析度／fps／碼率仍可再手動調整）</string>
-    <string name="settings_detect_network_failed_message">測速逾時或失敗，請確認網路連線後再試一次</string>
-    <!-- v0.12.2：有效（非 0）樣本為 0 個時顯示，跟上面「逾時或例外」的情況分開，避免混淆 -->
-    <string name="settings_detect_network_all_failed_message">測速失敗，請檢查網路連線</string>
 
     <!-- v0.10.0：同步錄影備份——設定頁新增區塊，見 LiveActivity 類別頂端 KDoc -->
     <string name="settings_record_section_title">同步錄影備份</string>
@@ -318,18 +309,14 @@
     <string-array name="resolution_options">
         <item>1920x1080（1080p）</item>
         <item>1280x720（720p）</item>
-        <item>854x480（480p）</item>
     </string-array>
 
     <string-array name="fps_options">
         <item>24 fps</item>
         <item>30 fps</item>
-        <item>60 fps</item>
     </string-array>
 
     <string-array name="bitrate_options">
-        <item>1400 Kbps</item>
-        <item>2300 Kbps</item>
         <item>3300 Kbps</item>
         <item>4000 Kbps</item>
     </string-array>

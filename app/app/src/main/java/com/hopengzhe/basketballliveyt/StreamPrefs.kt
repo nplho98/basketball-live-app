@@ -81,7 +81,12 @@ object StreamPrefs {
     // 才能在設定頁還原上次選擇的 Spinner 選項。
     const val DEFAULT_RESOLUTION = "1280x720（720p）"
     const val DEFAULT_FPS = "30 fps"
-    const val DEFAULT_BITRATE = "2300 Kbps"
+    const val DEFAULT_BITRATE = "3300 Kbps"
+    const val LOW_LATENCY_BITRATE = "3300 Kbps"
+
+    private val ALLOWED_RESOLUTIONS = setOf("1920x1080（1080p）", DEFAULT_RESOLUTION)
+    private val ALLOWED_FPS_VALUES = setOf("24 fps", DEFAULT_FPS)
+    private val ALLOWED_BITRATES = setOf(DEFAULT_BITRATE, "4000 Kbps")
 
     // v0.10.0：同步錄影備份選項文字，需與 strings.xml 的 record_resolution_options／
     // record_save_mode_options 完全一致（Spinner 還原機制，沿用上面既有慣例）
@@ -147,14 +152,41 @@ object StreamPrefs {
 
     fun getPrivacy(context: Context): String = prefs(context).getString(KEY_PRIVACY, "") ?: ""
 
-    fun getResolution(context: Context): String =
-        prefs(context).getString(KEY_RESOLUTION, DEFAULT_RESOLUTION) ?: DEFAULT_RESOLUTION
+    fun getResolution(context: Context): String {
+        val preferences = prefs(context)
+        val saved = preferences.getString(KEY_RESOLUTION, DEFAULT_RESOLUTION)
+        val migrated = coerceResolution(saved)
+        if (saved != migrated) preferences.edit().putString(KEY_RESOLUTION, migrated).apply()
+        return migrated
+    }
 
-    fun getFps(context: Context): String =
-        prefs(context).getString(KEY_FPS, DEFAULT_FPS) ?: DEFAULT_FPS
+    fun getFps(context: Context): String {
+        val preferences = prefs(context)
+        val saved = preferences.getString(KEY_FPS, DEFAULT_FPS)
+        val migrated = coerceFps(saved)
+        if (saved != migrated) preferences.edit().putString(KEY_FPS, migrated).apply()
+        return migrated
+    }
 
-    fun getBitrate(context: Context): String =
-        prefs(context).getString(KEY_BITRATE, DEFAULT_BITRATE) ?: DEFAULT_BITRATE
+    /** 將已移除或無效的直播解析度回落到預設值；供讀取舊設定時遷移。 */
+    fun coerceResolution(value: String?): String =
+        value?.takeIf { it in ALLOWED_RESOLUTIONS } ?: DEFAULT_RESOLUTION
+
+    /** 將已移除或無效的直播影格率回落到預設值；供讀取舊設定時遷移。 */
+    fun coerceFps(value: String?): String =
+        value?.takeIf { it in ALLOWED_FPS_VALUES } ?: DEFAULT_FPS
+
+    fun getBitrate(context: Context): String {
+        val preferences = prefs(context)
+        val saved = preferences.getString(KEY_BITRATE, DEFAULT_BITRATE)
+        val migrated = coerceBitrate(saved)
+        if (saved != migrated) preferences.edit().putString(KEY_BITRATE, migrated).apply()
+        return migrated
+    }
+
+    /** 將已移除或無效的直播碼率回落到預設值；供讀取舊設定時遷移。 */
+    fun coerceBitrate(value: String?): String =
+        value?.takeIf { it in ALLOWED_BITRATES } ?: DEFAULT_BITRATE
 
     /** 直播中碼率自動調整開關：true＝網路壅塞時自動降碼率（見 LiveActivity.onNewBitrate），
      *  false＝全程固定用使用者選的碼率，不受 BitrateAdapter 影響。 */
@@ -255,9 +287,10 @@ object StreamPrefs {
         return Regex("""(\d+)""").find(fps)?.value?.toIntOrNull() ?: 30
     }
 
-    /** 解析碼率字串（例如「2300 Kbps」）成 bps，解析失敗則回傳 2300 Kbps。 */
+    /** 解析碼率字串（例如「3300 Kbps」）成 bps，解析失敗則回傳預設碼率。 */
     fun parseBitrate(bitrate: String): Int {
-        val kbps = Regex("""(\d+)""").find(bitrate)?.value?.toIntOrNull() ?: 2300
+        val defaultKbps = Regex("""(\d+)""").find(DEFAULT_BITRATE)!!.value.toInt()
+        val kbps = Regex("""(\d+)""").find(bitrate)?.value?.toIntOrNull() ?: defaultKbps
         return kbps * 1000
     }
 
