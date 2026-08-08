@@ -1007,7 +1007,16 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         applyScoreboardOverlayFilter()
 
         if (!rtmpCamera2.isOnPreview) {
-            rtmpCamera2.startPreview()
+            // v0.18.47：GL 離屏畫布（相機＋所有濾鏡的合成結果）只在這裡建立一次，尺寸就是帶進來的
+            // 寬高。原本帶直播解析度＝畫布 720p，1080p 錄影表面拿到的是放大 1.5 倍的畫面，計分板
+            // 金色細線變凸點、文字失真（Boss 8/3 實戰回報）。改帶錄影解析度＝畫布 1080p：錄影 1:1，
+            // 直播則由 GL 縮到 720p 輸出。開播時 startEncoders 會把直播 blit 尺寸設回 720p，
+            // 而 prepareGlView 只在 GL 沒在跑時才 start()，所以畫布不會被重建成 720p。
+            if (recordingEnabled) {
+                rtmpCamera2.startPreview(RECORD_DEFAULT_WIDTH, RECORD_DEFAULT_HEIGHT)
+            } else {
+                rtmpCamera2.startPreview()
+            }
             if (recordingEnabled) restoreLiveEncoderReportedFps(fps)
             lifecycleScope.launch {
                 delay(1_000L)
@@ -1042,10 +1051,19 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                 .get(rtmpCamera2) as com.pedro.encoder.video.VideoEncoder
             val recordEncoder = baseClass.getDeclaredField("videoEncoderRecord").apply { isAccessible = true }
                 .get(rtmpCamera2) as com.pedro.encoder.video.VideoEncoder
+            // v0.18.47：GL 離屏畫布尺寸是「錄影是否被放大」的唯一判準（見 startLivePreview 註解）。
+            // 期望 glRender 等於錄影解析度；若又回到直播解析度＝計分板失真會重現。
+            val mainRender = rtmpCamera2.glInterface.javaClass
+                .getDeclaredField("mainRender").apply { isAccessible = true }
+                .get(rtmpCamera2.glInterface)
+            val renderClass = mainRender.javaClass
+            val renderWidth = renderClass.getDeclaredField("width").apply { isAccessible = true }.getInt(mainRender)
+            val renderHeight = renderClass.getDeclaredField("height").apply { isAccessible = true }.getInt(mainRender)
             DiagLogger.log(
                 this, "VIDEO-PIPELINE",
                 "requestedFps=$requestedFps cameraFps=$cameraFps appliedRange=$appliedRange " +
                     "differentRecord=$differentRecord gl=${rtmpCamera2.glInterface.javaClass.simpleName} " +
+                    "glRender=${renderWidth}x$renderHeight glBlit=${rtmpCamera2.glInterface.encoderSize} " +
                     "stream=${streamEncoder.width}x${streamEncoder.height}@${streamEncoder.fps}/${streamEncoder.bitRate} " +
                     "record=${recordEncoder.width}x${recordEncoder.height}@${recordEncoder.fps}/${recordEncoder.bitRate}"
             )
