@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>休息畫面賽事名稱位置 — 10 款提案</title>
+<style>
+  :root{
+    --warm-white:#F6EFE0;
+    --gold-light:#F3CF7F;
+    --gold-dark:#E0A83F;
+    --box-light:#F7DFA0;
+    --box-dark:#CF9F45;
+    --divider:rgba(243,207,127,0.35);
+    --dim:rgba(246,239,224,0.45);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#1a1a1a;color:var(--warm-white);
+    font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;padding:24px}
+  h1{font-size:20px;margin-bottom:4px}
+  .note{color:#999;font-size:13px;margin-bottom:20px;line-height:1.7}
+  .grid{display:flex;flex-wrap:wrap;gap:28px}
+  .item{width:720px}
+  .item h2{font-size:15px;color:var(--gold-light);margin-bottom:2px}
+  .item .desc{font-size:12px;color:#999;margin-bottom:8px;line-height:1.6}
+
+  /* 16:9 直播畫面（1920x1080 縮 0.375） */
+  .frame{width:720px;height:405px;background:#000;position:relative;overflow:hidden;border:1px solid #333}
+  .panel{position:absolute;left:144px;top:77px;width:432px;height:251px;border-radius:20px;
+    background:linear-gradient(180deg,rgba(23,56,104,.84),rgba(13,33,64,.84));
+    border:2px solid rgba(255,214,140,.22)}
+  .accent{position:absolute;left:20px;right:20px;top:15px;height:2px;
+    background:linear-gradient(90deg,transparent,var(--gold-light) 25%,var(--gold-dark) 50%,var(--gold-light) 75%,transparent)}
+  .duel{position:absolute;left:0;right:0;top:33px;height:108px}
+  .side{position:absolute;width:150px;text-align:center}
+  .side.home{left:calc(30% - 75px)} .side.away{left:calc(70% - 75px)}
+  .side .name{font-size:24px;font-weight:700;line-height:1;margin-top:10px}
+  .side .chip{margin:14px auto 0;width:73px;height:56px;border-radius:8px;
+    background:linear-gradient(135deg,var(--box-light),var(--box-dark));
+    color:#111;font-weight:900;font-size:31px;display:flex;align-items:center;justify-content:center}
+  .vs{position:absolute;left:0;right:0;top:88px;text-align:center;
+    color:var(--gold-light);font-weight:700;font-size:18px}
+  .qtable{position:absolute;left:52px;right:52px;top:153px;height:78px}
+  .qtable table{width:100%;border-collapse:collapse}
+  .qtable th{color:var(--gold-light);font-size:13px;font-weight:700;padding-bottom:5px;
+    border-bottom:1px solid var(--divider)}
+  .qtable td{font-size:16px;font-weight:700;text-align:center;padding-top:4px;line-height:1.15}
+  .qtable td.team{text-align:right;width:26%;padding-right:6px}
+  .qtable th.team{width:26%}
+
+  /* ---- 賽事名稱：各款樣式 ----
+     .title 以最近的定位祖先為基準：放在 .frame 下＝畫面座標；放在 .panel 內＝面板座標 */
+  .title{position:absolute;letter-spacing:.12em;font-weight:700;white-space:nowrap}
+
+  /* 01 面板外上方懸浮 */
+  .v01 .title{left:0;right:0;top:38px;text-align:center;font-size:26px;
+    background:linear-gradient(180deg,var(--box-light),var(--box-dark));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  /* 02 金飾線壓字 */
+  .v02 .titlewrap{position:absolute;left:20px;right:20px;top:8px;display:flex;align-items:center;gap:10px}
+  .v02 .lineL,.v02 .lineR{flex:1;height:2px}
+  .v02 .lineL{background:linear-gradient(90deg,transparent,var(--gold-dark),var(--gold-light))}
+  .v02 .lineR{background:linear-gradient(90deg,var(--gold-light),var(--gold-dark),transparent)}
+  .v02 .title{position:static;font-size:15px;color:var(--gold-light)}
+  /* 03 金色 ribbon 跨上緣 */
+  .v03 .title{left:50%;transform:translateX(-50%);top:63px;font-size:16px;color:#12294D;
+    background:linear-gradient(135deg,var(--box-light),var(--box-dark));
+    padding:5px 26px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+  /* 04 面板內頂部小字（面板座標） */
+  .v04 .accent{top:11px}
+  .v04 .title{left:0;right:0;top:20px;text-align:center;font-size:14px;color:var(--gold-light)}
+  .v04 .duel{top:44px;height:100px}
+  .v04 .side .name{margin-top:6px}
+  /* 05 左上角膠囊標籤（面板座標） */
+  .v05 .accent{top:11px}
+  .v05 .title{left:16px;top:20px;font-size:12px;color:var(--gold-light);
+    border:1px solid var(--divider);border-radius:99px;padding:3px 12px;
+    background:rgba(0,0,0,.22)}
+  .v05 .duel{top:48px;height:96px}
+  .v05 .side .name{margin-top:6px}
+  /* 06 半嵌上緣膠囊 */
+  .v06 .title{left:50%;transform:translateX(-50%);top:66px;font-size:15px;color:var(--gold-light);
+    border:1px solid rgba(243,207,127,.45);border-radius:99px;padding:5px 22px;
+    background:linear-gradient(180deg,#1B3F73,#173868)}
+  /* 07 兩個比分方塊之間、VS 正上方（面板座標，可用寬度只有 99px） */
+  .v07 .title{left:0;right:0;top:92px;text-align:center;font-size:12px;color:var(--gold-light);letter-spacing:.02em}
+  /* 08 面板內底部頁尾（面板座標） */
+  .v08 .title{left:0;right:0;bottom:6px;text-align:center;font-size:13px;color:var(--dim);letter-spacing:.2em}
+  /* 09 面板外下方 */
+  .v09 .title{left:0;right:0;top:342px;text-align:center;font-size:20px;color:var(--gold-light);letter-spacing:.25em}
+  /* 10 頂列左右分欄 */
+  .v10 .accent{top:34px}
+  .v10 .toprow{position:absolute;left:24px;right:24px;top:12px;display:flex;justify-content:space-between;align-items:baseline}
+  .v10 .title{position:static;font-size:15px;color:var(--gold-light)}
+  .v10 .sub{font-size:12px;color:var(--dim);letter-spacing:.1em}
+  .v10 .duel{top:44px;height:100px}
+  .v10 .side .name{margin-top:6px}
+</style>
+</head>
+<body>
+<h1>休息畫面「賽事名稱」擺放位置 — 10 款提案</h1>
+<p class="note">
+  底圖依實際程式比例還原：面板 = 畫面寬 60% × 高 62% 置中，對決區在面板高 13%~56%，四節表在 153~231（縮圖座標）。<br>
+  每格 720×405 = 1920×1080 的 0.375 倍；說明裡的字級已換算回 1080p 實際 px。範例文字用「2026 中正盃」。
+</p>
+<div class="grid" id="grid"></div>
+
+<script>
+const PANEL = [
+  '<div class="panel">',
+  '  <div class="accent"></div>',
+  '  <div class="duel">',
+  '    <div class="side home"><div class="name">信義國中</div><div class="chip">59</div></div>',
+  '    <div class="side away"><div class="name">中正國中</div><div class="chip">21</div></div>',
+  '    <div class="vs">VS</div>',
+  '  </div>',
+  '  <div class="qtable"><table>',
+  '    <tr><th class="team"></th><th>第1節</th><th>第2節</th><th>第3節</th><th>第4節</th></tr>',
+  '    <tr><td class="team">信義國中</td><td>24</td><td>10</td><td>13</td><td>12</td></tr>',
+  '    <tr><td class="team">中正國中</td><td>2</td><td>6</td><td>8</td><td>5</td></tr>',
+  '  </table></div>',
+  '__INNER__',
+  '</div>'
+].join('\n');
+
+const T = '2026 中正盃';
+const TITLE = '<div class="title">' + T + '</div>';
+const ACCENT = '<div class="accent"></div>';
+// 標題放面板外＝畫面座標；放面板內（inner）＝面板座標
+const outer = () => PANEL.replace('__INNER__', '');
+const inner = () => PANEL.replace('__INNER__', TITLE);
+
+const items = [
+  ['01　面板外上方懸浮金字',
+   '字在黑底上、面板正上方，金漸層。最醒目，面板內排版完全不動。字級 70px @1080p。',
+   TITLE + outer()],
+  ['02　金飾線壓字',
+   '原本那條金飾線從中間斷開，賽事名稱嵌進缺口。跟現有裝飾合而為一，不多佔垂直空間。字級 40px。',
+   outer().replace(ACCENT,
+     '<div class="titlewrap"><div class="lineL"></div><div class="title">' + T + '</div><div class="lineR"></div></div>')],
+  ['03　金色實心 ribbon 跨面板上緣',
+   '金底藏青字的橫幅壓在面板上邊界。存在感最強，像正式賽事標頭。字級 43px。',
+   outer() + TITLE],
+  ['04　面板內頂部小字（金飾線下）',
+   '飾線往上移，名稱放飾線與隊名之間，對決區整體下壓約 30px @1080p。最保守、最不搶戲。字級 37px。',
+   inner()],
+  ['05　左上角膠囊標籤',
+   '靠面板左上內側，金框圓角。中央完全不動，名稱很長時也不會擠到比分。字級 32px。',
+   inner()],
+  ['06　半嵌上緣膠囊',
+   '藏青底金框膠囊卡在面板上邊界，比 03 低調、比 04 醒目。字級 40px。',
+   outer() + TITLE],
+  ['07　兩顆比分方塊之間、VS 正上方',
+   '塞進中央那道縫。可用寬度只有 99px（264px @1080p），「2026 中正盃」剛好卡滿，再長就爆版。字級 32px。',
+   inner()],
+  ['08　面板內底部頁尾',
+   '四節表下方，半透明暖白小字。像轉播台呼號，最不干擾比分閱讀。字級 35px。',
+   inner()],
+  ['09　面板外下方',
+   '面板下的黑底區。有呼吸感，但視線要往下跑，開場第一眼不容易看到。字級 53px。',
+   outer() + TITLE],
+  ['10　頂列左右分欄',
+   '左邊賽事名稱、右邊留給日期或場次，飾線下移當分隔。資訊量最大。字級 40px。',
+   outer().replace(ACCENT,
+     '<div class="toprow"><div class="title">' + T + '</div><div class="sub">2026.09.01</div></div>' + ACCENT)],
+];
+
+document.getElementById('grid').innerHTML = items.map(function (it, i) {
+  const n = String(i + 1).padStart(2, '0');
+  return '<div class="item"><h2>' + it[0] + '</h2><div class="desc">' + it[1] +
+         '</div><div class="frame v' + n + '">' + it[2] + '</div></div>';
+}).join('');
+</script>
+</body>
+</html>

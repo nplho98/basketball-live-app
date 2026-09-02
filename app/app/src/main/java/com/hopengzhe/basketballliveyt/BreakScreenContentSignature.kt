@@ -2,6 +2,7 @@ package com.hopengzhe.basketballliveyt
 
 /** 休息畫面 Bitmap 的完整內容鍵；未列入的狀態不會影響休息畫面像素。 */
 data class BreakScreenContentSignature(
+    val eventTitle: String,
     val teamHomeName: String,
     val teamAwayName: String,
     val scoreHome: Int,
@@ -18,6 +19,7 @@ data class BreakScreenContentSignature(
          * 建立不可變的內容簽章。陣列會複製成 List，避免後續原地修改使快取鍵跟著改變。
          */
         fun calculate(
+            eventTitle: String,
             teamHomeName: String,
             teamAwayName: String,
             scoreHome: Int,
@@ -29,6 +31,7 @@ data class BreakScreenContentSignature(
             baseWidth: Int,
             baseHeight: Int
         ): BreakScreenContentSignature = BreakScreenContentSignature(
+            eventTitle = eventTitle,
             teamHomeName = teamHomeName,
             teamAwayName = teamAwayName,
             scoreHome = scoreHome,

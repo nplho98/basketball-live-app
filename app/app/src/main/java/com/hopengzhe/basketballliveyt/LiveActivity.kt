@@ -2642,6 +2642,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun calculateBreakScreenContentSignature(): BreakScreenContentSignature {
         val overlayBase = overlayBaseResolution()
         return BreakScreenContentSignature.calculate(
+            eventTitle = breakEventTitle(),
             teamHomeName = teamHomeName,
             teamAwayName = teamAwayName,
             scoreHome = scoreHome,
@@ -3914,9 +3915,17 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             strokeWidth = (panelHeight * 0.018f).coerceAtLeast(2f)
         }
         val accentLineY = panelTop + panelHeight * 0.06f
-        canvas.drawLine(
-            panelLeft + cornerRadius, accentLineY, panelLeft + panelWidth - cornerRadius, accentLineY, accentLinePaint
-        )
+        val accentLeft = panelLeft + cornerRadius
+        val accentRight = panelLeft + panelWidth - cornerRadius
+        val eventTitle = breakEventTitle()
+        if (eventTitle.isEmpty()) {
+            canvas.drawLine(accentLeft, accentLineY, accentRight, accentLineY, accentLinePaint)
+        } else {
+            drawBreakEventTitle(
+                canvas, eventTitle, panelLeft, panelWidth, panelHeight,
+                accentLeft, accentRight, accentLineY, accentLinePaint
+            )
+        }
 
         // 上半部：兩隊對決（隊名在上、大總分金方塊在下、金色 VS 置中）
         val duelTop = panelTop + panelHeight * 0.13f
@@ -3932,6 +3941,67 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         )
         if (BuildConfig.DEBUG) dumpOverlayPng(bitmap, "break_screen.png")
         return bitmap
+    }
+
+    /**
+     * 休息畫面頂緣要顯示的賽事名稱＝設定頁賽事名稱的**第一行**（[StreamPrefs.getEventName] 用換行符
+     * 存兩行，計分板左欄畫兩行）。樣式02 是單行版型，水平空間只夠一行，第二行忽略（Boss 2026-09-01
+     * 指定「第一列文字」）。空字串代表不顯示，頂緣金飾線維持原本一整條。
+     */
+    private fun breakEventTitle(): String =
+        eventName.split("\n").firstOrNull()?.trim().orEmpty()
+
+    /**
+     * 休息畫面頂緣賽事名稱（樣品樣式02＋配色04，Boss 2026-09-01 拍板）：原本一整條的金飾線從正中間
+     * 斷開，賽事名稱嵌進缺口，左右兩段線沿用同一個 [accentLinePaint] 漸層 shader——shader 是畫布座標，
+     * 兩段各自取到自己覆蓋的那段漸層，靠近缺口的內側端點正好是最亮的金，等同樣品的效果。
+     *
+     * 配色04＝金字（243,207,127）＋深藍描邊（10,26,51）。描邊的用途不是裝飾：面板底是 84% 半透明藏青，
+     * 相機畫面會透出來，背景亮（白牆／燈光地板）時金字對比會掉；描邊在字外圍鋪一圈不透明深藍，
+     * 不管背後拍到什麼，字周圍永遠有固定暗色，錄影兩次壓縮（H.264＋YouTube 轉檔）後才不會糊掉。
+     */
+    private fun drawBreakEventTitle(
+        canvas: Canvas,
+        title: String,
+        panelLeft: Float,
+        panelWidth: Float,
+        panelHeight: Float,
+        accentLeft: Float,
+        accentRight: Float,
+        accentLineY: Float,
+        accentLinePaint: Paint
+    ) {
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(243, 207, 127)
+            typeface = Typeface.DEFAULT_BOLD
+            textAlign = Paint.Align.CENTER
+            letterSpacing = BREAK_TITLE_LETTER_SPACING
+            textSize = panelHeight * BREAK_TITLE_TEXT_SIZE_RATIO
+        }
+        // 名稱過長時縮字，避免吃光左右兩段飾線（做法同隊名縮字，見 drawBreakDuelBlock）
+        while (fillPaint.measureText(title) > panelWidth * BREAK_TITLE_MAX_WIDTH_RATIO && fillPaint.textSize > 8f) {
+            fillPaint.textSize -= 1f
+        }
+        val strokePaint = Paint(fillPaint).apply {
+            style = Paint.Style.STROKE
+            strokeJoin = Paint.Join.ROUND
+            color = Color.rgb(10, 26, 51)
+            strokeWidth = (panelHeight * 0.004f).coerceAtLeast(2f)
+        }
+
+        // measureText 含尾端字距，Align.CENTER 會整體左偏半個字距，textX 補回來；
+        // 兩段飾線的端點則用扣掉尾端字距的實際可見寬度算，左右留白才會對稱。
+        val letterSpacingPx = fillPaint.textSize * fillPaint.letterSpacing
+        val visibleWidth = fillPaint.measureText(title) - letterSpacingPx
+        val centerX = panelLeft + panelWidth / 2f
+        val gap = panelHeight * BREAK_TITLE_LINE_GAP_RATIO
+        canvas.drawLine(accentLeft, accentLineY, centerX - visibleWidth / 2f - gap, accentLineY, accentLinePaint)
+        canvas.drawLine(centerX + visibleWidth / 2f + gap, accentLineY, accentRight, accentLineY, accentLinePaint)
+
+        val baseline = accentLineY - (fillPaint.descent() + fillPaint.ascent()) / 2f
+        val textX = centerX + letterSpacingPx / 2f
+        canvas.drawText(title, textX, baseline, strokePaint)
+        canvas.drawText(title, textX, baseline, fillPaint)
     }
 
     /**
@@ -4229,6 +4299,14 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.18.15：每進一次延長賽（多一欄）面板加寬的比例，OT3 時＝0.60+0.30＝畫面寬的 0.90
         const val BREAK_PANEL_WIDTH_PER_OT = 0.10f
         const val BREAK_PANEL_HEIGHT_RATIO = 0.62f
+
+        // v0.18.48：休息畫面頂緣賽事名稱（樣式02 金飾線壓字），字級相對面板高＝40px @1080p
+        const val BREAK_TITLE_TEXT_SIZE_RATIO = 0.06f
+        const val BREAK_TITLE_LETTER_SPACING = 0.12f
+        // 文字與左右兩段飾線之間的留白
+        const val BREAK_TITLE_LINE_GAP_RATIO = 0.04f
+        // 名稱最寬佔面板寬的比例，超過就縮字，保證左右兩段飾線不會被吃光
+        const val BREAK_TITLE_MAX_WIDTH_RATIO = 0.60f
 
         // v0.16.3：休息畫面「停相機降溫」（順位2）總開關——Boss 直播實測停相機後畫面凍結
         // （setForceRender 在 Camera2Base 舊管線沒真的驅動 GL 續送幀），先停用一律走順位3

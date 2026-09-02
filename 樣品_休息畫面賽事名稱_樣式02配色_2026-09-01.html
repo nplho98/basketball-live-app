@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>樣式02 金飾線壓字 — 10 種配色</title>
+<style>
+  :root{
+    --warm-white:#F6EFE0;
+    --gold-light:#F3CF7F;
+    --gold-dark:#E0A83F;
+    --box-light:#F7DFA0;
+    --box-dark:#CF9F45;
+    --divider:rgba(243,207,127,0.35);
+    --dim:rgba(246,239,224,0.45);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#1a1a1a;color:var(--warm-white);
+    font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;padding:24px}
+  h1{font-size:20px;margin-bottom:4px}
+  .note{color:#999;font-size:13px;margin-bottom:20px;line-height:1.7}
+  .grid{display:flex;flex-wrap:wrap;gap:28px}
+  .item{width:720px}
+  .item h2{font-size:15px;color:var(--gold-light);margin-bottom:2px}
+  .item .desc{font-size:12px;color:#999;margin-bottom:8px;line-height:1.6}
+  .item .desc b{color:#ccc}
+
+  /* 16:9 直播畫面（1920x1080 縮 0.375） */
+  .frame{width:720px;height:405px;background:#000;position:relative;overflow:hidden;border:1px solid #333}
+  .panel{position:absolute;left:144px;top:77px;width:432px;height:251px;border-radius:20px;
+    background:linear-gradient(180deg,rgba(23,56,104,.84),rgba(13,33,64,.84));
+    border:2px solid rgba(255,214,140,.22)}
+  .duel{position:absolute;left:0;right:0;top:33px;height:108px}
+  .side{position:absolute;width:150px;text-align:center}
+  .side.home{left:calc(30% - 75px)} .side.away{left:calc(70% - 75px)}
+  .side .name{font-size:24px;font-weight:700;line-height:1;margin-top:10px}
+  .side .chip{margin:14px auto 0;width:73px;height:56px;border-radius:8px;
+    background:linear-gradient(135deg,var(--box-light),var(--box-dark));
+    color:#111;font-weight:900;font-size:31px;display:flex;align-items:center;justify-content:center}
+  .vs{position:absolute;left:0;right:0;top:88px;text-align:center;
+    color:var(--gold-light);font-weight:700;font-size:18px}
+  .qtable{position:absolute;left:52px;right:52px;top:153px;height:78px}
+  .qtable table{width:100%;border-collapse:collapse}
+  .qtable th{color:var(--gold-light);font-size:13px;font-weight:700;padding-bottom:5px;
+    border-bottom:1px solid var(--divider)}
+  .qtable td{font-size:16px;font-weight:700;text-align:center;padding-top:4px;line-height:1.15}
+  .qtable td.team{text-align:right;width:26%;padding-right:6px}
+  .qtable th.team{width:26%}
+
+  /* ---- 樣式02：金飾線從中間斷開，賽事名稱嵌進缺口 ---- */
+  .titlewrap{position:absolute;left:20px;right:20px;top:8px;display:flex;align-items:center;gap:10px}
+  .lineL,.lineR{flex:1;height:2px}
+  .title{font-size:15px;font-weight:700;letter-spacing:.12em;white-space:nowrap}
+
+  /* c01 原金（現況色） */
+  .c01 .title{color:#F3CF7F}
+  .c01 .lineL{background:linear-gradient(90deg,transparent,#E0A83F,#F3CF7F)}
+  .c01 .lineR{background:linear-gradient(90deg,#F3CF7F,#E0A83F,transparent)}
+  /* c02 暖白字＋金線 */
+  .c02 .title{color:#F6EFE0}
+  .c02 .lineL{background:linear-gradient(90deg,transparent,#E0A83F,#F3CF7F)}
+  .c02 .lineR{background:linear-gradient(90deg,#F3CF7F,#E0A83F,transparent)}
+  /* c03 淺金漸層字（同比分方塊金） */
+  .c03 .title{background:linear-gradient(180deg,#F7DFA0,#CF9F45);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .c03 .lineL{background:linear-gradient(90deg,transparent,#CF9F45,#F7DFA0)}
+  .c03 .lineR{background:linear-gradient(90deg,#F7DFA0,#CF9F45,transparent)}
+  /* c04 金字＋深藍描邊 */
+  .c04 .title{color:#F3CF7F;
+    text-shadow:0 0 3px #0A1A33, 1px 1px 0 #0A1A33, -1px -1px 0 #0A1A33, 1px -1px 0 #0A1A33, -1px 1px 0 #0A1A33}
+  .c04 .lineL{background:linear-gradient(90deg,transparent,#E0A83F,#F3CF7F)}
+  .c04 .lineR{background:linear-gradient(90deg,#F3CF7F,#E0A83F,transparent)}
+  /* c05 香檳金 */
+  .c05 .title{color:#F7E7C0}
+  .c05 .lineL{background:linear-gradient(90deg,transparent,#D9C08A,#F7E7C0)}
+  .c05 .lineR{background:linear-gradient(90deg,#F7E7C0,#D9C08A,transparent)}
+  /* c06 銀白 */
+  .c06 .title{color:#DDE6F2}
+  .c06 .lineL{background:linear-gradient(90deg,transparent,#8FA4C0,#DDE6F2)}
+  .c06 .lineR{background:linear-gradient(90deg,#DDE6F2,#8FA4C0,transparent)}
+  /* c07 冰藍 */
+  .c07 .title{color:#8FC7F0}
+  .c07 .lineL{background:linear-gradient(90deg,transparent,#4A86B8,#8FC7F0)}
+  .c07 .lineR{background:linear-gradient(90deg,#8FC7F0,#4A86B8,transparent)}
+  /* c08 古銅橘 */
+  .c08 .title{color:#D98E45}
+  .c08 .lineL{background:linear-gradient(90deg,transparent,#A96A2E,#D98E45)}
+  .c08 .lineR{background:linear-gradient(90deg,#D98E45,#A96A2E,transparent)}
+  /* c09 純白＋金線 */
+  .c09 .title{color:#FFFFFF}
+  .c09 .lineL{background:linear-gradient(90deg,transparent,#E0A83F,#F3CF7F)}
+  .c09 .lineR{background:linear-gradient(90deg,#F3CF7F,#E0A83F,transparent)}
+  /* c10 金字＋金色光暈 */
+  .c10 .title{color:#F7DFA0;text-shadow:0 0 8px rgba(243,207,127,.75),0 0 16px rgba(224,168,63,.45)}
+  .c10 .lineL{background:linear-gradient(90deg,transparent,#E0A83F,#F3CF7F);box-shadow:0 0 6px rgba(243,207,127,.5)}
+  .c10 .lineR{background:linear-gradient(90deg,#F3CF7F,#E0A83F,transparent);box-shadow:0 0 6px rgba(243,207,127,.5)}
+</style>
+</head>
+<body>
+<h1>樣式02「金飾線壓字」— 10 種配色</h1>
+<p class="note">
+  版型固定：金飾線從中間斷開，賽事名稱嵌進缺口，字級 40px @1080p、字距 0.12em。只換顏色。<br>
+  對比值＝文字色對面板藏青底（#132F57）的 WCAG 對比比率。<b>4.5 以上算安全</b>；數字越高，經過 H.264 壓縮＋YouTube 二次轉檔後越不容易糊掉。
+</p>
+<div class="grid" id="grid"></div>
+
+<script>
+const T = '2026 中正盃';
+const PANEL = [
+  '<div class="panel">',
+  '  <div class="titlewrap"><div class="lineL"></div><div class="title">' + T + '</div><div class="lineR"></div></div>',
+  '  <div class="duel">',
+  '    <div class="side home"><div class="name">信義國中</div><div class="chip">59</div></div>',
+  '    <div class="side away"><div class="name">中正國中</div><div class="chip">21</div></div>',
+  '    <div class="vs">VS</div>',
+  '  </div>',
+  '  <div class="qtable"><table>',
+  '    <tr><th class="team"></th><th>第1節</th><th>第2節</th><th>第3節</th><th>第4節</th></tr>',
+  '    <tr><td class="team">信義國中</td><td>24</td><td>10</td><td>13</td><td>12</td></tr>',
+  '    <tr><td class="team">中正國中</td><td>2</td><td>6</td><td>8</td><td>5</td></tr>',
+  '  </table></div>',
+  '</div>'
+].join('\n');
+
+const items = [
+  ['01　原金 #F3CF7F', '對比 8.93', '跟第1~4節表頭、VS 完全同色。整張面板只有一種金，最一致。'],
+  ['02　暖白字 #F6EFE0 ＋ 金線', '對比 11.67', '字跟隊名同色，金線負責裝飾。賽事名稱不跟金色比分搶眼。'],
+  ['03　淺金漸層字 #F7DFA0→#CF9F45', '對比 10.19（上緣）', '跟兩顆比分方塊同一組漸層，金屬感最強。40px 小字下漸層幾乎看不出來。'],
+  ['04　金字 ＋ 深藍描邊', '對比 8.93 ＋ 描邊', '描邊把字跟背景切開。相機畫面透出來時最不容易被吃掉，錄影壓縮存活率最高。'],
+  ['05　香檳金 #F7E7C0', '對比 10.91', '比原金淡、更接近白。柔和不刺眼，但金味變薄。'],
+  ['06　銀白 #DDE6F2', '對比 10.61', '冷色系。跟藏青底同一個色溫，最沉穩，但整張面板的金色主調被打斷。'],
+  ['07　冰藍 #8FC7F0', '對比 7.38', '唯一的跳色。賽事名稱一眼跟比分區分開，代價是配色從雙色變三色。'],
+  ['08　古銅橘 #D98E45', '對比 5.03', '最暗的一款，勉強過安全線。40px 小字經過 YouTube 轉檔容易糊，不建議。'],
+  ['09　純白 #FFFFFF', '對比 13.36', '對比最高、最清楚。但白色在這張藏青金面板上會顯得生硬。'],
+  ['10　金字 ＋ 金色光暈', '對比 10.19 ＋ 光暈', '有發光感、最像正式賽事標頭。光暈是實心繪製，壓縮後可能出現色塊邊緣。'],
+];
+
+document.getElementById('grid').innerHTML = items.map(function (it, i) {
+  const n = 'c' + String(i + 1).padStart(2, '0');
+  return '<div class="item"><h2>' + it[0] + '</h2><div class="desc"><b>' + it[1] + '</b>　' + it[2] +
+         '</div><div class="frame ' + n + '">' + PANEL + '</div></div>';
+}).join('');
+</script>
+</body>
+</html>
