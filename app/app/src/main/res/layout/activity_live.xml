@@ -339,69 +339,34 @@
         android:layout_marginTop="4dp"
         tools:text="36.8°C 健康" />
 
-    <!-- ===================== 隊名點擊區（v0.8.4：刪除重複顯示分數/節數的真實 UI 面板，
-         改為兩個透明點擊區，對齊燒入影片計分板的隊名位置，點擊仍可跳出改名對話框） ===================== -->
-    <!-- 分數/節數/犯規已經燒入影片計分板常駐顯示（見 LiveActivity.buildScoreboardOverlayBitmap），
-         不再需要真實 UI 面板重複顯示一次。這兩區完全透明看不到，只保留點擊功能，
-         位置抓在燒入計分板「隊名」大約所在的左／右半邊，讓觀眾看到的畫面乾淨、不會有兩層計分板。 -->
-    <!-- v0.8.6 修正：原本 tvTeamHomeName 用 constraintStart_toStartOf="parent"，
-         實際落點在螢幕最左邊（0%~46%），根本沒對齊燒入計分板實際所在的中央區域（約 27%~73%），
-         導致以它為錨點的計分按鈕群也跟著跑到左側收合欄那邊去。改用三條參考線精準卡在
-         燒入計分板的實際範圍內（左緣 27%、置中 50%、右緣 73%，對應 OVERLAY_WIDTH_RATIO=0.46 置中）。 -->
-    <androidx.constraintlayout.widget.Guideline
-        android:id="@+id/guidelineTeamNameLeft"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        app:layout_constraintGuide_percent="0.27" />
-
-    <androidx.constraintlayout.widget.Guideline
-        android:id="@+id/guidelineTeamNameCenter"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        app:layout_constraintGuide_percent="0.5" />
-
-    <androidx.constraintlayout.widget.Guideline
-        android:id="@+id/guidelineTeamNameRight"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        app:layout_constraintGuide_percent="0.73" />
-
+    <!-- v0.19.0：目前套用的球員名單年級（選人視窗用哪一份）。只顯示在 APP 操作介面，
+         不燒進計分板 overlay。Boss 定案放右上角橫排最左：名單→溫度→變焦→版本號 -->
     <TextView
-        android:id="@+id/tvTeamHomeName"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="@android:color/transparent"
-        android:textColor="@android:color/transparent"
-        android:text="@string/team_home_default"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="@id/guidelineTeamNameLeft"
-        app:layout_constraintEnd_toStartOf="@id/guidelineTeamNameCenter"
-        app:layout_constraintHeight_percent="0.13" />
+        android:id="@+id/tvRosterGrade"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/white"
+        android:textStyle="bold"
+        android:textSize="9sp"
+        android:alpha="0.6"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        android:background="@drawable/bg_round_button_dark"
+        android:backgroundTint="@null"
+        app:layout_constraintTop_toTopOf="@id/tvTempStatus"
+        app:layout_constraintBottom_toBottomOf="@id/tvTempStatus"
+        app:layout_constraintEnd_toStartOf="@id/tvTempStatus"
+        android:layout_marginEnd="6dp"
+        tools:text="名單：七年級" />
 
-    <TextView
-        android:id="@+id/tvTeamAwayName"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="@android:color/transparent"
-        android:textColor="@android:color/transparent"
-        android:text="@string/team_away_default"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toEndOf="@id/guidelineTeamNameCenter"
-        app:layout_constraintEnd_toEndOf="@id/guidelineTeamNameRight"
-        app:layout_constraintHeight_percent="0.13" />
-
+    <!-- v0.19.2：隊名透明點擊區與其三條參考線已移除——隊名改名統一在系統設定頁（Boss 指定）。
+         舊版這裡是兩塊完全透明、疊在燒入計分板隊名位置上的 TextView，只為了接改名點擊；
+         功能拿掉後沒有任何 view 以它們為錨點，整段刪除。 -->
     <!-- ===================== 主隊計分 +/- 固定列（v0.8.0 新增：獨立於左側欄，永遠顯示、不參與任何面板收合） ===================== -->
     <!-- v0.8.5：Boss 指定排列方式為單排橫向，貼在底部計分板左側、跟計分板同一垂直高度，
          由外而內＝-1、+3、+2、+1（離計分板越近的按鈕使用頻率越高，+1 貼著計分板最好按）。
          不再跟 leftPanelContainer 搶垂直空間（改回各自獨立置中），版面問題一次解決。 -->
-    <!-- v0.8.10：改成從螢幕左緣往內排（不再跟著 tvTeamHomeName 位置浮動），
+    <!-- v0.8.10：改成從螢幕左緣往內排（不再跟著已刪除的隊名點擊區位置浮動），
          避免螢幕較窄時最外側的 -1 按鈕被截到畫面外；整體下移約 1/3 按鈕高度、加上透明度。 -->
     <!-- v0.8.15：Boss 要求先移到畫面最上方試看看 -->
     <!-- v0.9.6：Boss 看過配置提案圖後定案——移回畫面下方，貼齊左下角、跟燒入計分板（27%~73%）

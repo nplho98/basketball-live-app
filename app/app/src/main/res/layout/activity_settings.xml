@@ -247,7 +247,7 @@
             android:layout_marginBottom="20dp"
         />
 
-        <!-- v0.18.26：隊名也能在設定頁改（原本只能點畫面上的隊名），存好回直播畫面立即帶入計分板 -->
+        <!-- v0.19.2：隊名只在本頁改（畫面上點隊名的入口已移除），存好回直播畫面立即帶入計分板 -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -818,6 +818,41 @@
             android:entries="@array/highlight_rebound_seconds_options"
             android:layout_marginTop="4dp"
             android:layout_marginBottom="28dp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/settings_divider" />
+
+        <!-- v0.19.0：球員名單——年級下拉同時決定「本場套用哪一份」與「編輯哪一份」；
+             名單本身在對話框裡輸入（一行一位），按確定當下就存檔，年級則按「儲存設定」才生效 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_roster_grade_label"
+            android:textColor="@color/text_label"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/spinnerRosterGrade"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/roster_grade_options"
+            android:layout_marginTop="4dp" />
+
+        <Button
+            android:id="@+id/btnEditRoster"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="28dp"
+            android:background="@drawable/bg_round_button_stop"
+            android:backgroundTint="@null"
+            android:text="@string/settings_roster_edit_button"
+            android:textColor="@color/white"
+            android:textSize="14sp" />
 
         <Button
             android:id="@+id/btnSaveSettings"

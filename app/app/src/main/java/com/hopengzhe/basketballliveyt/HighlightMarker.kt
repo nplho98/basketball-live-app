@@ -20,7 +20,11 @@ data class HighlightMarker(
     val scoreHome: Int,
     val scoreAway: Int,
     /** v0.18.15：主隊加分自動標記的說明文字（例「信義N號：2分」）；空字串＝舊檔，退回節數比分格式。 */
-    val label: String = ""
+    val label: String = "",
+    /** v0.19.1：得分者姓名；空字串＝加分當下沒選人（收播統計歸「未指定」）。 */
+    val scorer: String = "",
+    /** v0.19.1：這一球幾分（1／2／3）；0＝本欄位問世前的舊檔，不列入統計。 */
+    val points: Int = 0
 ) {
     /** 顯示／複製章節格式共用：`mm:ss 信義N號：2分`；無說明文字時退回舊格式 `mm:ss 第N節 主X-客Y`。 */
     fun toDisplayLine(): String {
@@ -38,6 +42,8 @@ data class HighlightMarker(
         put("scoreHome", scoreHome)
         put("scoreAway", scoreAway)
         put("label", label)
+        put("scorer", scorer)
+        put("points", points)
     }
 
     companion object {
@@ -46,9 +52,31 @@ data class HighlightMarker(
             period = json.optInt("period", 1),
             scoreHome = json.optInt("scoreHome", 0),
             scoreAway = json.optInt("scoreAway", 0),
-            label = json.optString("label", "")
+            label = json.optString("label", ""),
+            scorer = json.optString("scorer", ""),
+            points = json.optInt("points", 0)
         )
     }
+}
+
+/** v0.19.1：單一得分者的本場總分；[scorer] 為空字串＝未指定（加分當下沒選人）。 */
+data class ScorerTotal(val scorer: String, val points: Int)
+
+/**
+ * v0.19.1：本場得分統計——依得分者加總 [HighlightMarker.points]，分數高到低（同分依姓名排），
+ * 「未指定」固定排最後。[HighlightMarker.points] 為 0 的舊標記不列入。
+ */
+fun summarizeScorers(markers: List<HighlightMarker>): List<ScorerTotal> {
+    val totals = LinkedHashMap<String, Int>()
+    markers.filter { it.points > 0 }.forEach { marker ->
+        totals[marker.scorer] = (totals[marker.scorer] ?: 0) + marker.points
+    }
+    val named = totals.entries
+        .filter { it.key.isNotEmpty() }
+        .map { ScorerTotal(it.key, it.value) }
+        .sortedWith(compareByDescending<ScorerTotal> { it.points }.thenBy { it.scorer })
+    val unassigned = totals[""]?.let { listOf(ScorerTotal("", it)) } ?: emptyList()
+    return named + unassigned
 }
 
 /**

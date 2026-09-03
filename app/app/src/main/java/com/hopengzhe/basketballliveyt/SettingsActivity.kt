@@ -5,10 +5,13 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.Spinner
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
 import androidx.documentfile.provider.DocumentFile
 import com.hopengzhe.basketballliveyt.databinding.ActivitySettingsBinding
 
@@ -55,6 +58,7 @@ class SettingsActivity : AppCompatActivity() {
         setupRecordSection()
         setupTitleTemplates()
         setupLowLatencyPreset()
+        setupRosterSection()
 
         binding.btnSwitchAccount.setOnClickListener {
             GoogleAuthManager.getClient(this).signOut().addOnCompleteListener {
@@ -106,7 +110,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.etYouTubeLabelB.text.toString().trim(),
                 binding.etYouTubeKeyB.text.toString().trim()
             )
-            // v0.18.26：隊名（與畫面上點隊名編輯共用同一份設定，留空＝用預設「主隊／客隊」）
+            // v0.19.2：隊名（本頁是唯一入口，留空＝用預設「主隊／客隊」）
             StreamPrefs.saveTeamNames(
                 this,
                 binding.etTeamHomeName.text.toString().trim(),
@@ -123,6 +127,11 @@ class SettingsActivity : AppCompatActivity() {
             StreamPrefs.saveLivePlatform(
                 this,
                 binding.spinnerLivePlatform.selectedItem?.toString() ?: StreamPrefs.PLATFORM_YOUTUBE
+            )
+            // v0.19.0：本場球員名單年級（名單內容本身在對話框按確定當下就已存檔）
+            StreamPrefs.saveActiveRosterGrade(
+                this,
+                binding.spinnerRosterGrade.selectedItem?.toString() ?: StreamPrefs.DEFAULT_ROSTER_GRADE
             )
             // v0.13.0：功能 A 精彩時刻標記——標記回推秒數
             StreamPrefs.saveHighlightReboundSeconds(
@@ -232,6 +241,10 @@ class SettingsActivity : AppCompatActivity() {
         setSpinnerSelection(
             binding.spinnerLivePlatform, R.array.live_platform_options, StreamPrefs.getLivePlatform(this)
         )
+        // v0.19.0：本場球員名單年級
+        setSpinnerSelection(
+            binding.spinnerRosterGrade, R.array.roster_grade_options, StreamPrefs.getActiveRosterGrade(this)
+        )
         binding.switchBitrateAutoAdjust.isChecked = StreamPrefs.isBitrateAutoAdjust(this)
         setSpinnerSelection(binding.spinnerPrivacy, R.array.privacy_options, StreamPrefs.getPrivacy(this))
         setSpinnerSelection(binding.spinnerResolution, R.array.resolution_options, StreamPrefs.getResolution(this))
@@ -251,6 +264,47 @@ class SettingsActivity : AppCompatActivity() {
             R.array.highlight_rebound_seconds_options,
             StreamPrefs.getHighlightReboundSeconds(this)
         )
+    }
+
+    /**
+     * v0.19.0：球員名單編輯——「編輯目前年級名單」按鈕跳對話框，內容是一個多行輸入框，
+     * 一行一位（[StreamPrefs.parseRoster] 會去空行、去頭尾空白、截到 12 位）。
+     * 按確定當下就存進 [StreamPrefs]，不等「儲存設定」——否則切年級時上一份草稿會不見。
+     * ponytail: 直播畫面鎖橫式、軟鍵盤一開沒剩多少高度，12 個獨立輸入格排不下，用單一多行框最省。
+     */
+    private fun setupRosterSection() {
+        binding.btnEditRoster.setOnClickListener {
+            val grade = binding.spinnerRosterGrade.selectedItem?.toString()
+                ?: StreamPrefs.DEFAULT_ROSTER_GRADE
+            val paddingPx = (16 * resources.displayMetrics.density).toInt()
+            val editText = EditText(this).apply {
+                setText(StreamPrefs.serializeRoster(StreamPrefs.getRoster(this@SettingsActivity, grade)))
+                hint = getString(R.string.settings_roster_edit_hint)
+                gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                minLines = 6
+                maxLines = StreamPrefs.ROSTER_MAX_SIZE
+                setSingleLine(false)
+                setSelection(text.length)
+            }
+            val container = FrameLayout(this).apply {
+                setPadding(paddingPx, paddingPx / 2, paddingPx, 0)
+                addView(editText)
+            }
+            AlertDialog.Builder(this)
+                .setTitle(getString(R.string.settings_roster_edit_title, grade))
+                .setView(container)
+                .setPositiveButton(getString(R.string.dialog_confirm_button)) { _, _ ->
+                    StreamPrefs.saveRoster(this, grade, editText.text.toString())
+                    val saved = StreamPrefs.getRoster(this, grade).size
+                    Toast.makeText(
+                        this,
+                        getString(R.string.settings_roster_saved_toast, grade, saved),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                .setNegativeButton(getString(R.string.dialog_cancel_button), null)
+                .show()
+        }
     }
 
     private fun setSpinnerSelection(spinner: Spinner, arrayRes: Int, savedValue: String) {

@@ -33,7 +33,6 @@ import android.os.ParcelFileDescriptor
 import android.os.StatFs
 import android.os.SystemClock
 import android.provider.MediaStore
-import android.text.InputFilter
 import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
@@ -45,8 +44,6 @@ import android.view.SurfaceHolder
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.EditText
-import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.addCallback
@@ -95,7 +92,7 @@ import java.util.Locale
  *   見 [drawFoulLights]）；頂部犯規 +/- 按下時同步重繪燒入濾鏡（見 [changeFoulHome]/[changeFoulAway]）
  * - 計分板（隊名/分數/節數/犯規）透過 [ImageObjectFilterRender] 燒入直播影像，
  *   任何分數/節數/隊名/犯規變動都會重繪 Bitmap 並更新濾鏡（見 [refreshScoreboardOverlay]）
- * - 隊名可點擊底部計分列的隊名文字編輯（見 [showTeamNameEditDialog]），存 SharedPreferences 下次開啟仍記得
+ * - 隊名在系統設定頁編輯（v0.19.2 起唯一入口），存 SharedPreferences 下次開啟仍記得
  * - v0.5.0：相機控制真實生效（見 [setupExposureControls]/[setupFocusLock]/[onKeyDown]）——
  *   曝光 +/- 呼叫 RootEncoder 2.4.9 `Camera2Base.setExposure/getMinExposure/getMaxExposure`
  *   （底層對應 `CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION`，函式庫內部已依
@@ -286,7 +283,7 @@ import java.util.Locale
  *      [liveStartElapsedMs] 為基準）－設定頁『標記回推秒數』」＋當下節數/比分（[HighlightMarker]）；
  *      存 JSON（[HighlightStore]，APP 外部檔案區 `highlights/`，檔名帶場次時間戳，收播不清除）；
  *      收播流程結束跳「精彩清單」對話框（[showHighlightListDialog]，程式化建構列表比照
- *      [showTeamNameEditDialog] 做法，不新增 layout/adapter），可 ±5 秒微調／刪除／複製章節格式
+ *      [showScorerPickerDialog] 做法，不新增 layout/adapter），可 ±5 秒微調／刪除／複製章節格式
  *      （`mm:ss 第N節 主X-客Y`，見 [HighlightMarker.toDisplayLine]）到剪貼簿。
  *   2. 休息畫面＝精華輪播：「休息畫面」鈕（[setupBreakScreenButton]，右側欄）切現場/回放模式。
  *      取「進入時間點往回最近 10 個標記」（[BREAK_MAX_CLIP_COUNT]，順序舊到新——Boss 未拍板項
@@ -601,6 +598,10 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     // 本場直播開始的 SystemClock.elapsedRealtime()，標記／回放定位皆以此為基準換算「直播經過時間」
     private var liveStartElapsedMs: Long = 0L
 
+    // v0.19.0：球員名單——本場套用的年級與該年級名單（設定頁存，onStart 重讀）
+    private var rosterGrade: String = StreamPrefs.DEFAULT_ROSTER_GRADE
+    private var roster: List<String> = emptyList()
+
     // v0.16.0：功能三——休息畫面四節計分表。各節已結算分數（-1＝該節尚未結算），
     // 切節數當下結算（見 changePeriod），StreamPrefs 持久化防閃退／重開恢復。
     private var quarterScoresHome = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
@@ -725,8 +726,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         teamHomeName = StreamPrefs.getTeamHomeName(this).ifEmpty { getString(R.string.team_home_default) }
         teamAwayName = StreamPrefs.getTeamAwayName(this).ifEmpty { getString(R.string.team_away_default) }
         eventName = StreamPrefs.getEventName(this)
-        binding.tvTeamHomeName.text = teamHomeName
-        binding.tvTeamAwayName.text = teamAwayName
+        reloadRoster()
 
         rtmpCamera2 = RtmpCamera2(binding.openGlView, this)
         rtmpCamera2.getStreamClient().setReTries(RECONNECT_MAX_RETRIES)
@@ -807,7 +807,6 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
         setupScoreButtons()
         setupTopOperationButtons()
-        setupTeamNameEditing()
         setupLiveToggle()
         setupShareButton()
         setupResetScoresButton()
@@ -836,11 +835,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // 設定頁只有在未直播時才能進入，回到本畫面時重新讀取賽事名稱，
         // 確保剛在設定頁存的賽事名稱能立即反映在燒入計分板上。
         eventName = StreamPrefs.getEventName(this)
-        // v0.18.26：隊名也能在設定頁改（原本只能點畫面上的隊名），回到本畫面同樣立即反映
+        // v0.19.2：隊名只在設定頁改，回到本畫面重讀才會反映到燒入計分板上
         teamHomeName = StreamPrefs.getTeamHomeName(this).ifEmpty { getString(R.string.team_home_default) }
         teamAwayName = StreamPrefs.getTeamAwayName(this).ifEmpty { getString(R.string.team_away_default) }
-        binding.tvTeamHomeName.text = teamHomeName
-        binding.tvTeamAwayName.text = teamAwayName
+        // v0.19.0：球員名單年級同理——設定頁按「儲存設定」後返回，這裡重讀才會生效
+        reloadRoster()
         if (hasCameraPermissions && !rtmpCamera2.isStreaming && !rtmpCamera2.isOnPreview) {
             lifecycleScope.launch { applyStreamSettingsAndStartPreview() }
         } else {
@@ -2441,8 +2440,14 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         refreshScoreboardOverlay()
         // v0.18.15：主隊（左側）加分自動記一筆精彩標記「<主隊名>N號：X分」，號碼留 N 由 Boss 事後補；
         // 減分與客隊加分不記（Boss 指定）。未開播時不記，直接加分不跳提示。
+        // v0.19.0：標記先落地再選人——選人視窗開著時收播或 APP 被殺，這球都不會消失；
+        // 時間／節數／比分也天然凍在按下當刻，選人花多久都不影響。
         if (delta > 0) {
-            addHighlightMarker(getString(R.string.highlight_score_label_format, teamHomeName, delta))
+            val marker = addHighlightMarker(
+                getString(R.string.highlight_score_label_format, teamHomeName, delta),
+                points = delta
+            )
+            if (marker != null && roster.isNotEmpty()) showScorerPickerDialog(marker, delta)
         }
     }
 
@@ -2454,13 +2459,68 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     // ---------- 頂部操作列：主隊犯規/節數/客隊犯規（犯規 0～4；節數最低第 1 節） ----------
 
     private fun setupTopOperationButtons() {
-        binding.btnFoulHomeMinus.setOnClickListener { changeFoulHome(-1) }
         binding.btnFoulHomePlus.setOnClickListener { changeFoulHome(1) }
         binding.btnPeriodMinus.setOnClickListener { changePeriod(-1) }
         binding.btnPeriodPlus.setOnClickListener { changePeriod(1) }
         binding.btnPeriodMinus.setOnLongClickListener { resetPeriod(); true }
-        binding.btnFoulAwayMinus.setOnClickListener { changeFoulAway(-1) }
         binding.btnFoulAwayPlus.setOnClickListener { changeFoulAway(1) }
+        // v0.19.2：犯規 − 短按減 1、按滿 1 秒歸零（Boss 指定）。
+        // 犯規每節重算，歸零必然發生在直播中，因此不套 rejectResetWhileLive 的直播中防呆。
+        setTapAndHold(
+            binding.btnFoulHomeMinus,
+            onTap = { changeFoulHome(-1) },
+            onHold = { resetFoul(isHome = true) }
+        )
+        setTapAndHold(
+            binding.btnFoulAwayMinus,
+            onTap = { changeFoulAway(-1) },
+            onHold = { resetFoul(isHome = false) }
+        )
+    }
+
+    /**
+     * v0.19.2：短按／長按同一顆按鈕。Android 內建長按約 0.5 秒（分數、節數歸零走內建），
+     * 犯規歸零 Boss 指定要按滿 [FOUL_RESET_HOLD_MS]，所以自己計時。
+     *
+     * onTouch 一律回傳 false（不吃掉事件），按鈕原本的按下動畫與 click 照常；
+     * 計時器跑到就把 [held] 立起來，讓同一次觸摸放開時的 click 不要再減 1。
+     * ponytail: 只有犯規兩顆按鈕用得到，不抽成共用 View extension。
+     */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private fun setTapAndHold(button: View, onTap: () -> Unit, onHold: () -> Unit) {
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        var held = false
+        val holdRunnable = Runnable {
+            held = true
+            onHold()
+        }
+        button.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    held = false
+                    handler.postDelayed(holdRunnable, FOUL_RESET_HOLD_MS)
+                }
+                // 按住後滑出按鈕範圍就取消計時（原生 click 也是滑出就不算），滑回來不重新計時
+                MotionEvent.ACTION_MOVE ->
+                    if (event.x < 0 || event.y < 0 ||
+                        event.x > button.width || event.y > button.height
+                    ) {
+                        handler.removeCallbacks(holdRunnable)
+                    }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                    handler.removeCallbacks(holdRunnable)
+            }
+            false
+        }
+        button.setOnClickListener { if (!held) onTap() }
+    }
+
+    /** v0.19.2：該隊犯規次數歸零（燒入計分板的 4 格燈號同步全滅）。 */
+    private fun resetFoul(isHome: Boolean) {
+        if (isHome) foulHome = 0 else foulAway = 0
+        refreshScoreboardOverlay()
+        val teamName = if (isHome) teamHomeName else teamAwayName
+        Toast.makeText(this, getString(R.string.foul_reset_toast, teamName), Toast.LENGTH_SHORT).show()
     }
 
     /** 犯規次數已改為燒入計分板 4 格燈號顯示，這裡只更新變數並重繪濾鏡，不再更新畫面上的犯規標籤。 */
@@ -2533,49 +2593,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         StreamPrefs.saveQuarterScores(this, quarterScoresHome, quarterScoresAway)
     }
 
-    // ---------- 隊名編輯：點底部計分列的隊名跳出對話框，空白則還原預設 ----------
-
-    private fun setupTeamNameEditing() {
-        binding.tvTeamHomeName.setOnClickListener { showTeamNameEditDialog(isHome = true) }
-        binding.tvTeamAwayName.setOnClickListener { showTeamNameEditDialog(isHome = false) }
-    }
-
-    private fun showTeamNameEditDialog(isHome: Boolean) {
-        val currentName = if (isHome) teamHomeName else teamAwayName
-        val paddingPx = (16 * resources.displayMetrics.density).toInt()
-        val editText = EditText(this).apply {
-            setText(currentName)
-            hint = getString(R.string.edit_team_name_hint)
-            setSelection(text.length)
-            // 隊名燒入計分板時會依可用寬度自動縮字，字數上限避免縮到底仍溢出方塊
-            filters = arrayOf(InputFilter.LengthFilter(TEAM_NAME_MAX_LENGTH))
-        }
-        val container = FrameLayout(this).apply {
-            setPadding(paddingPx, paddingPx / 2, paddingPx, 0)
-            addView(editText)
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle(
-                if (isHome) getString(R.string.edit_team_home_name_title) else getString(R.string.edit_team_away_name_title)
-            )
-            .setView(container)
-            .setPositiveButton(getString(R.string.dialog_confirm_button)) { _, _ ->
-                val defaultName = if (isHome) getString(R.string.team_home_default) else getString(R.string.team_away_default)
-                val newName = editText.text.toString().trim().ifEmpty { defaultName }
-                if (isHome) {
-                    teamHomeName = newName
-                    binding.tvTeamHomeName.text = newName
-                } else {
-                    teamAwayName = newName
-                    binding.tvTeamAwayName.text = newName
-                }
-                StreamPrefs.saveTeamNames(this, teamHomeName, teamAwayName)
-                refreshScoreboardOverlay()
-            }
-            .setNegativeButton(getString(R.string.dialog_cancel_button), null)
-            .show()
-    }
+    // v0.19.2：點計分板隊名改名的功能已移除（Boss 指定隊名一律在系統設定頁改），
+    // 連同兩個透明點擊區與其參考線一起從 activity_live.xml 刪掉。
 
     // ---------- 左側欄：分數清零（比賽中誤按代價高，先跳確認框） ----------
 
@@ -3536,15 +3555,130 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
     }
 
-    /** 記「目前直播經過時間－回推秒數」＋當下節數/兩隊比分＋說明文字；未開播直接跳過不記。 */
-    private fun addHighlightMarker(label: String) {
-        if (!isLive) return
+    /**
+     * 記「目前直播經過時間－回推秒數」＋當下節數/兩隊比分＋說明文字；未開播直接跳過不記。
+     * v0.19.0：回傳剛寫入的那一筆（未開播回 null），供 [showScorerPickerDialog] 事後改寫說明文字。
+     */
+    private fun addHighlightMarker(label: String, points: Int = 0): HighlightMarker? {
+        if (!isLive) return null
         val reboundSeconds = StreamPrefs.parseHighlightReboundSeconds(StreamPrefs.getHighlightReboundSeconds(this))
         val elapsedMs = SystemClock.elapsedRealtime() - liveStartElapsedMs
         val markTimestampMs = (elapsedMs - reboundSeconds * 1000L).coerceAtLeast(0L)
-        highlightMarkers.add(HighlightMarker(markTimestampMs, period, scoreHome, scoreAway, label))
+        val marker = HighlightMarker(markTimestampMs, period, scoreHome, scoreAway, label, points = points)
+        highlightMarkers.add(marker)
         persistHighlightMarkers()
         Toast.makeText(this, getString(R.string.highlight_marked_toast, label), Toast.LENGTH_SHORT).show()
+        return marker
+    }
+
+    /** v0.19.0：重讀設定頁存的本場年級與該年級名單，並更新左上角小字。onCreate／onStart 共用。 */
+    private fun reloadRoster() {
+        rosterGrade = StreamPrefs.getActiveRosterGrade(this)
+        roster = StreamPrefs.getRoster(this, rosterGrade)
+        binding.tvRosterGrade.text = getString(R.string.live_roster_grade_format, rosterGrade)
+    }
+
+    /**
+     * v0.19.0：得分者選擇——主隊加分後跳出本場年級的 12 位姓名大按鈕（一列 3 顆），點下即關並把
+     * [marker] 的說明文字改成「王小明：2分」。取消／返回不做事，那筆維持加分當下寫入的
+     * 「主隊名N號：X分」，事後貼進 YouTube／LINE 之前再改文字即可。
+     *
+     * 名單為空時呼叫端就不會叫到這裡。對話框是 modal，底下計分鈕點不到，因此不另外禁用按鈕；
+     * [selectionDone] 只擋同一個視窗內的重複點擊（快速雙擊）。
+     */
+    private fun showScorerPickerDialog(marker: HighlightMarker, delta: Int) {
+        val density = resources.displayMetrics.density
+        val paddingPx = (12 * density).toInt()
+        val buttonHeightPx = (48 * density).toInt()
+        val gapPx = (6 * density).toInt()
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+        }
+        // 橫式螢幕高度有限，名單再長時至少能捲；正常 12 位排兩列不會用到
+        val scrollView = android.widget.ScrollView(this).apply { addView(container) }
+        var selectionDone = false
+        val dialog = AlertDialog.Builder(this).setView(scrollView).create()
+
+        fun pickerButton(text: String, onClick: () -> Unit) = android.widget.Button(this).apply {
+            this.text = text
+            isAllCaps = false
+            maxLines = 1
+            minWidth = 0
+            minimumWidth = 0
+            setPadding(gapPx, 0, gapPx, 0)
+            textSize = SCORER_PICKER_TEXT_SP
+            setTextColor(getColor(R.color.white))
+            background = androidx.core.content.ContextCompat.getDrawable(
+                this@LiveActivity, R.drawable.bg_round_button_dark
+            )
+            backgroundTintList = null
+            alpha = SCORER_PICKER_BUTTON_ALPHA
+            setOnClickListener { onClick() }
+        }
+
+        // ponytail: 巢狀 LinearLayout 排格子，不用 GridLayout 也不用 RecyclerView
+        roster.chunked(SCORER_PICKER_COLUMNS).forEach { rowNames ->
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+            }
+            rowNames.forEach { name ->
+                val button = pickerButton(name) {
+                    if (!selectionDone) {
+                        selectionDone = true
+                        applyScorerToMarker(marker, name, delta)
+                    }
+                    dialog.dismiss()
+                }
+                row.addView(
+                    button,
+                    android.widget.LinearLayout.LayoutParams(0, buttonHeightPx, 1f).apply {
+                        setMargins(gapPx / 2, gapPx / 2, gapPx / 2, gapPx / 2)
+                    }
+                )
+            }
+            // 最後一列人數不足時補空白佔位，按鈕寬度才會跟其他列一致
+            repeat(SCORER_PICKER_COLUMNS - rowNames.size) {
+                row.addView(
+                    android.view.View(this),
+                    android.widget.LinearLayout.LayoutParams(0, buttonHeightPx, 1f)
+                )
+            }
+            container.addView(row)
+        }
+        // 取消自己排一列（視窗背景透明後，系統的對話框按鈕列會看不清楚）
+        container.addView(
+            pickerButton(getString(R.string.dialog_cancel_button)) { dialog.dismiss() },
+            android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, buttonHeightPx
+            ).apply { setMargins(gapPx / 2, gapPx, gapPx / 2, gapPx / 2) }
+        )
+
+        dialog.show()
+        // 對話框預設有最大寬度（橫式下姓名會被截成一個字），拉滿螢幕寬並拿掉背景與變暗，
+        // 讓 Boss 選人時仍看得到後面的直播畫面
+        dialog.window?.apply {
+            setLayout(
+                android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                android.view.WindowManager.LayoutParams.WRAP_CONTENT
+            )
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            setDimAmount(0f)
+        }
+    }
+
+    /** 把指定標記的說明文字換成得分者；該筆若已被⭐移除（找不到）就什麼都不做。 */
+    private fun applyScorerToMarker(marker: HighlightMarker, name: String, delta: Int) {
+        val index = highlightMarkers.indexOfFirst { it === marker }
+        if (index < 0) return
+        val label = getString(R.string.highlight_scorer_label_format, name, delta)
+        highlightMarkers[index] = marker.copy(label = label, scorer = name)
+        persistHighlightMarkers()
+        Toast.makeText(
+            this,
+            getString(R.string.highlight_scorer_updated_toast, label),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun persistHighlightMarkers() {
@@ -3552,7 +3686,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     }
 
     /**
-     * 精彩清單：程式化建構列表（不新增 layout/adapter，比照 [showTeamNameEditDialog] 的做法），
+     * 精彩清單：程式化建構列表（不新增 layout/adapter，比照 [showScorerPickerDialog] 的做法），
      * 每筆可 ±5 秒微調、可刪除，改動即時存檔（[persistHighlightMarkers]）並重繪列表本身。
      * 「複製章節格式」把目前清單（依時間排序）整份轉成多行文字放進剪貼簿。
      */
@@ -3641,6 +3775,20 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             highlightMarkers.sortedBy { it.timestampMs }.map { it.toDisplayLine() })
             .joinToString("\n")
 
+    /**
+     * v0.19.1：本場得分統計，只接在「分享LINE」的文字後面（Boss 指定；複製章節格式維持原樣）。
+     * 沒有任何可統計的標記時回傳空字串，分享內容就跟以前一樣。
+     */
+    private fun buildScorerSummaryText(): String {
+        val totals = summarizeScorers(highlightMarkers)
+        if (totals.isEmpty()) return ""
+        val lines = totals.map { total ->
+            val name = total.scorer.ifEmpty { getString(R.string.highlight_stats_unassigned) }
+            getString(R.string.highlight_stats_line, name, total.points)
+        }
+        return "\n\n" + getString(R.string.highlight_stats_heading) + "\n" + lines.joinToString("\n")
+    }
+
     private fun copyHighlightsAsChapterFormat() {
         val clipboard = getSystemService(ClipboardManager::class.java)
         clipboard?.setPrimaryClip(ClipData.newPlainText("highlight_chapters", buildHighlightChapterText()))
@@ -3655,7 +3803,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun shareHighlightsToLine() {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, buildHighlightChapterText())
+            putExtra(Intent.EXTRA_TEXT, buildHighlightChapterText() + buildScorerSummaryText())
             `package` = LINE_PACKAGE_NAME
         }
         try {
@@ -4176,11 +4324,16 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         const val PANEL_ANIM_DURATION_MS = 220L
         // v0.6.0：犯規上限由 5 改為 4（燒入計分板改用 4 格燈號，滿 4 格＝加罰）
         const val MAX_FOUL_COUNT = 4
+        // v0.19.2：犯規 − 按滿這麼久＝該隊犯規歸零（Boss 指定 1 秒；內建長按只要約 0.5 秒，比賽中容易誤觸）
+        const val FOUL_RESET_HOLD_MS = 1000L
         // 比分方塊固定以 3 位數寬度繪製（見 SCORE_BOX_WIDTH_REFERENCE_TEXT），分數上限同步夾在 3 位數內避免溢出
         const val MAX_SCORE = 999
-        // 隊名輸入字數上限（燒入計分板寬度有限，太長縮字也會溢出）
-        // v0.9.6：8 → 4——計分按鈕群移到畫面下方跟計分板同排後，計分板寬度必須固定可控
-        const val TEAM_NAME_MAX_LENGTH = 4
+        // v0.19.0：得分者選擇視窗一列幾顆姓名按鈕。直播畫面鎖橫式、螢幕高度吃緊，
+        // 12 位排 6 欄 2 列才不會被對話框高度截掉（3 欄 4 列實測會看不到後面幾位）。
+        const val SCORER_PICKER_COLUMNS = 6
+        const val SCORER_PICKER_TEXT_SP = 15f
+        // 半透明——選人當下仍看得到後面的直播畫面
+        const val SCORER_PICKER_BUTTON_ALPHA = 0.8f
 
         // v0.5.0：音量鍵每次按下的變焦增量（RootEncoder setZoom 單位＝倍率，1.0＝無變焦）
         const val ZOOM_STEP = 0.15f

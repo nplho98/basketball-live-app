@@ -55,10 +55,7 @@
     <!-- v0.18.15：第 5 節起改印延長賽（第5節＝OT1、第6節＝OT2、第7節＝OT3，上限第 7 節） -->
     <string name="period_overtime_format">OT%1$d</string>
 
-    <!-- 隊名編輯對話框 -->
-    <string name="edit_team_home_name_title">修改主隊隊名</string>
-    <string name="edit_team_away_name_title">修改客隊隊名</string>
-    <string name="edit_team_name_hint">輸入隊名，留空則還原預設</string>
+    <!-- v0.19.2：點計分板隊名改名的對話框已移除，隊名一律在系統設定頁改 -->
     <string name="dialog_confirm_button">確定</string>
     <string name="dialog_cancel_button">取消</string>
 
@@ -70,6 +67,8 @@
     <!-- v0.18.16：−1／節數 − 長按歸零的提示 -->
     <string name="score_reset_toast">%1$s 分數已歸零</string>
     <string name="period_reset_toast">節數已歸零（第 1 節）</string>
+    <!-- v0.19.2：犯規 − 按滿 1 秒歸零；犯規每節重算，直播中也要能按，不受收播限制 -->
+    <string name="foul_reset_toast">%1$s 犯規已歸零</string>
     <string name="reset_blocked_while_live_toast">直播中不能歸零，請先收播</string>
     <string name="period_minus_button">節數 −</string>
     <string name="period_plus_button">節數 ＋</string>
@@ -256,12 +255,12 @@
     <!-- v0.18.23：設定頁最上方的全功能使用教學（可收合，預設收起） -->
     <string name="settings_guide_header_collapsed">▶　使用教學說明（點一下展開）</string>
     <string name="settings_guide_header_expanded">▼　使用教學說明（點一下收起）</string>
-    <!-- v0.18.26：設定頁的隊名欄（與點畫面隊名編輯同一份設定） -->
+    <!-- v0.19.2：設定頁的隊名欄（改隊名的唯一入口） -->
     <string name="settings_team_names_label">主隊／客隊名稱</string>
     <string name="settings_team_home_hint">主隊名稱（最多 4 字，留空用預設）</string>
     <string name="settings_team_away_hint">客隊名稱（最多 4 字，留空用預設）</string>
-    <string name="settings_team_names_note">存檔後回直播畫面即帶入計分板；也可直接點畫面下方的隊名修改</string>
-    <string name="settings_guide_body"><![CDATA[<b>直播平台</b><br/>&#8195;•&#160;<b>YouTube</b>：登入 Google 帳號自動建立直播，可用「分享直播」傳觀看網址<br/>&#8195;•&#160;<b>Facebook</b>：先到 FB 建立直播（串流軟體模式），把該頁的「伺服器網址」「串流金鑰」分別填到本頁兩格<br/>&#8195;•&#160;<b>自訂</b>：整條 rtmp:// 或 rtmps:// 網址（含金鑰）貼進對應欄位，可推 Twitch 等<br/>&#8195;•&#160;三個平台的金鑰各自保存，換平台不用重貼<br/>&#8195;•&#160;FB／自訂沒有觀看網址可分享，收播請自行到該平台結束直播<br/>&#8195;•&#160;金鑰從網頁複製時，注意尾巴不要夾帶多餘符號<br/><br/><b>計分</b><br/>&#8195;•&#160;左下＝主隊、右下＝客隊，各有加減分按鈕<br/>&#8195;•&#160;長按 −1＝該隊分數歸零<br/>&#8195;•&#160;長按「節數 −」＝節數回第 1 節<br/>&#8195;•&#160;以上兩個長按<b>直播中禁用</b>，需先收播<br/>&#8195;•&#160;點畫面下方的隊名可直接改隊名<br/>&#8195;•&#160;左側「分數清零／犯規清零／節數清零」一次全部歸零<br/><br/><b>節數與延長賽</b><br/>&#8195;•&#160;第 1～4 節顯示「第 N 節」<br/>&#8195;•&#160;第 5～7 節顯示 OT1／OT2／OT3，最多到第 7 節<br/>&#8195;•&#160;犯規每隊最多 4 格燈號<br/><br/><b>精彩標記</b><br/>&#8195;•&#160;主隊按 +1／+2／+3 自動記一筆「主隊名 N 號：X 分」（僅直播中）<br/>&#8195;•&#160;右下「移除標記」每按一次刪掉最近加入的一筆<br/>&#8195;•&#160;「標記回推秒數」＝標記時間往前推幾秒，抓得到進球前動作<br/>&#8195;•&#160;收播後自動跳清單：±5 秒微調／刪除／複製章節格式／分享 LINE<br/><br/><b>休息畫面</b><br/>&#8195;•&#160;右下「休息畫面」切換黑底計分表，直播不中斷、相機暫停降溫<br/>&#8195;•&#160;再按一次（顯示「返回直播」）回到比賽畫面<br/>&#8195;•&#160;休息中分數／節數變動會即時反映在計分表<br/><br/><b>畫質與網路</b><br/>&#8195;•&#160;解析度／FPS／碼率在本頁設定，開播時套用<br/>&#8195;•&#160;「碼率自動調整」開＝塞車時自動降碼率保住連線；關＝固定送設定值<br/>&#8195;•&#160;畫面上「固定 X Mbps｜送出 Y Mbps」，靜止畫面送出值下降屬正常<br/>&#8195;•&#160;錄影固定 1080p30／20 Mbps，與直播互不影響，存到手機 Downloads<br/><br/><b>畫面控制</b><br/>&#8195;•&#160;上／左／右三個面板都可收合，收合後點螢幕邊緣把手展開<br/>&#8195;•&#160;右側可調曝光、定焦鎖定；畫面雙指縮放變焦<br/>&#8195;•&#160;機身過熱時右上角出現溫度警示，可降碼率或改用休息畫面降溫]]></string>
+    <string name="settings_team_names_note">存檔後回直播畫面即帶入計分板；隊名只能在這裡改</string>
+    <string name="settings_guide_body"><![CDATA[<b>直播平台</b><br/>&#8195;•&#160;<b>YouTube</b>：登入 Google 帳號自動建立直播，可用「分享直播」傳觀看網址<br/>&#8195;•&#160;<b>Facebook</b>：先到 FB 建立直播（串流軟體模式），把該頁的「伺服器網址」「串流金鑰」分別填到本頁兩格<br/>&#8195;•&#160;<b>自訂</b>：整條 rtmp:// 或 rtmps:// 網址（含金鑰）貼進對應欄位，可推 Twitch 等<br/>&#8195;•&#160;三個平台的金鑰各自保存，換平台不用重貼<br/>&#8195;•&#160;FB／自訂沒有觀看網址可分享，收播請自行到該平台結束直播<br/>&#8195;•&#160;金鑰從網頁複製時，注意尾巴不要夾帶多餘符號<br/><br/><b>計分</b><br/>&#8195;•&#160;左下＝主隊、右下＝客隊，各有加減分按鈕<br/>&#8195;•&#160;長按 −1＝該隊分數歸零<br/>&#8195;•&#160;長按「節數 −」＝節數回第 1 節<br/>&#8195;•&#160;以上兩個長按<b>直播中禁用</b>，需先收播<br/>&#8195;•&#160;長按 1 秒「主隊犯規 −」／「客隊犯規 −」＝該隊犯規歸零，<b>直播中也可用</b><br/>&#8195;•&#160;隊名請在本頁「隊名」欄修改（畫面上點隊名已取消）<br/>&#8195;•&#160;左側「分數清零／犯規清零／節數清零」一次全部歸零<br/><br/><b>節數與延長賽</b><br/>&#8195;•&#160;第 1～4 節顯示「第 N 節」<br/>&#8195;•&#160;第 5～7 節顯示 OT1／OT2／OT3，最多到第 7 節<br/>&#8195;•&#160;犯規每隊最多 4 格燈號<br/><br/><b>精彩標記</b><br/>&#8195;•&#160;主隊按 +1／+2／+3 自動記一筆「主隊名 N 號：X 分」（僅直播中）<br/>&#8195;•&#160;右下「移除標記」每按一次刪掉最近加入的一筆<br/>&#8195;•&#160;「標記回推秒數」＝標記時間往前推幾秒，抓得到進球前動作<br/>&#8195;•&#160;收播後自動跳清單：±5 秒微調／刪除／複製章節格式／分享 LINE<br/><br/><b>休息畫面</b><br/>&#8195;•&#160;右下「休息畫面」切換黑底計分表，直播不中斷、相機暫停降溫<br/>&#8195;•&#160;再按一次（顯示「返回直播」）回到比賽畫面<br/>&#8195;•&#160;休息中分數／節數變動會即時反映在計分表<br/><br/><b>畫質與網路</b><br/>&#8195;•&#160;解析度／FPS／碼率在本頁設定，開播時套用<br/>&#8195;•&#160;「碼率自動調整」開＝塞車時自動降碼率保住連線；關＝固定送設定值<br/>&#8195;•&#160;畫面上「固定 X Mbps｜送出 Y Mbps」，靜止畫面送出值下降屬正常<br/>&#8195;•&#160;錄影固定 1080p30／20 Mbps，與直播互不影響，存到手機 Downloads<br/><br/><b>畫面控制</b><br/>&#8195;•&#160;上／左／右三個面板都可收合，收合後點螢幕邊緣把手展開<br/>&#8195;•&#160;右側可調曝光、定焦鎖定；畫面雙指縮放變焦<br/>&#8195;•&#160;機身過熱時右上角出現溫度警示，可降碼率或改用休息畫面降溫]]></string>
 
     <!-- v0.18.16：直播平台選擇（見 StreamPrefs.PLATFORM_*／LiveActivity.resolveCustomRtmpUrl） -->
     <string name="settings_live_platform_label">直播平台</string>
@@ -340,5 +339,24 @@
         <item>10 秒</item>
         <item>15 秒</item>
         <item>20 秒</item>
+    </string-array>
+    <!-- v0.19.0：球員名單與得分者標記（見開發方案 Project14_球員名單與得分者標記_2026-09-02_v1.1.md） -->
+    <string name="settings_roster_grade_label">本場球員名單年級（選人記錄用）</string>
+    <string name="settings_roster_edit_button">編輯目前年級名單</string>
+    <string name="settings_roster_edit_title">%1$s 名單</string>
+    <string name="settings_roster_edit_hint">一行一位，最多 12 位</string>
+    <string name="settings_roster_saved_toast">%1$s 名單已存 %2$d 位</string>
+    <string name="live_roster_grade_format">名單：%1$s</string>
+    <string name="highlight_scorer_label_format">%1$s：%2$d分</string>
+    <string name="highlight_scorer_updated_toast">已記 %1$s</string>
+    <string name="highlight_stats_heading">本場得分</string>
+    <string name="highlight_stats_line">%1$s %2$d 分</string>
+    <string name="highlight_stats_unassigned">未指定</string>
+
+    <!-- v0.19.0：年級選項，需與 StreamPrefs.ROSTER_GRADES 一致 -->
+    <string-array name="roster_grade_options">
+        <item>七年級</item>
+        <item>八年級</item>
+        <item>九年級</item>
     </string-array>
 </resources>

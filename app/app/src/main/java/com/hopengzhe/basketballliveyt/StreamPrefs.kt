@@ -425,4 +425,52 @@ object StreamPrefs {
     /** 解析「10 秒」成整數秒，解析失敗回傳預設 10。 */
     fun parseHighlightReboundSeconds(value: String): Int =
         Regex("""(\d+)""").find(value)?.value?.toIntOrNull() ?: 10
+
+    // ---------- v0.19.0：球員名單（三個年級各一份，只存姓名） ----------
+    // ponytail: 36 個姓名直接存 SharedPreferences 的換行字串，不開資料庫、不留固定 12 格空位；
+    // 名單規模變大或要記背號／個人數據時再換結構。
+
+    private const val KEY_ROSTER_PREFIX = "roster_"
+    private const val KEY_ROSTER_ACTIVE_GRADE = "roster_active_grade"
+
+    /** 每個年級的名單上限；超出的行在存檔時就被截掉。 */
+    const val ROSTER_MAX_SIZE = 12
+
+    /** 年級選項，需與 strings.xml 的 roster_grade_options 一致。 */
+    val ROSTER_GRADES = listOf("七年級", "八年級", "九年級")
+
+    val DEFAULT_ROSTER_GRADE: String = ROSTER_GRADES.first()
+
+    /**
+     * 多行文字整成名單：正規化 CRLF／CR、去頭尾空白、丟掉空行，最多 [ROSTER_MAX_SIZE] 位。
+     * 存檔與讀取都走這裡，格式契約只有一份。
+     */
+    fun parseRoster(raw: String?): List<String> = (raw ?: "")
+        .replace("\r\n", "\n")
+        .replace('\r', '\n')
+        .split('\n')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .take(ROSTER_MAX_SIZE)
+
+    fun serializeRoster(names: List<String>): String = names.joinToString("\n")
+
+    fun getRoster(context: Context, grade: String): List<String> =
+        parseRoster(prefs(context).getString(KEY_ROSTER_PREFIX + grade, ""))
+
+    /** 名單對話框按確定當下就存檔（不等「儲存設定」），避免切年級時草稿遺失。 */
+    fun saveRoster(context: Context, grade: String, raw: String) {
+        prefs(context).edit()
+            .putString(KEY_ROSTER_PREFIX + grade, serializeRoster(parseRoster(raw)))
+            .apply()
+    }
+
+    /** 本場套用的年級；存到非法值（改版刪過的年級）時退回預設。 */
+    fun getActiveRosterGrade(context: Context): String =
+        prefs(context).getString(KEY_ROSTER_ACTIVE_GRADE, DEFAULT_ROSTER_GRADE)
+            ?.takeIf { it in ROSTER_GRADES } ?: DEFAULT_ROSTER_GRADE
+
+    fun saveActiveRosterGrade(context: Context, grade: String) {
+        prefs(context).edit().putString(KEY_ROSTER_ACTIVE_GRADE, grade).apply()
+    }
 }
