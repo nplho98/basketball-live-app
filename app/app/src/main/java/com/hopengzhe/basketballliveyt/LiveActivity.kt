@@ -1541,6 +1541,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * 這裡呼叫當下 streaming 仍為 true，不會重複觸發。
      */
     private fun stopLiveStream(showToast: Boolean) {
+        // v0.19.5：選人視窗還開著就收播的話，等一下的精彩清單會疊在它上面——先收掉。
+        // 沒選人的那筆維持「主隊名N號：X分」，統計歸「未指定」。
+        scorerPickerDialog?.dismiss()
         // v0.16.0：功能三——收播前先退出休息畫面（恢復相機、關 force render、移除濾鏡），
         // 確保收播走既有正常路徑，不留下停住的相機或殘留濾鏡
         if (isBreakMode) exitBreakMode()
@@ -2460,6 +2463,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun changeScoreAway(delta: Int) {
         scoreAway = (scoreAway + delta).coerceIn(0, MAX_SCORE)
         refreshScoreboardOverlay()
+        // v0.19.5：客隊（右側）加分照舊不記標記，但同樣收掉還開著的選人視窗（Boss 指定）——
+        // 上一球主隊的那筆維持「主隊名N號：X分」，統計歸「未指定」。
+        if (delta > 0) scorerPickerDialog?.dismiss()
     }
 
     // ---------- 頂部操作列：主隊犯規/節數/客隊犯規（犯規 0～4；節數最低第 1 節） ----------
@@ -3549,6 +3555,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * v0.19.0：得分者選擇——主隊加分後跳出本場年級的姓名大按鈕（6 欄 2 列），點下即關並把
      * [marker] 的說明文字改成「王小明：2分」。
      *
+     * v0.19.5：客隊加分也會關掉這個視窗（客隊照舊不記標記），行為與再按一次主隊加分相同。
+     *
      * v0.19.4：取消鈕移除。沒選人就直接再按一次主隊加分＝這個視窗立刻關掉、換新的那球開新視窗，
      * 沒選到的那筆維持加分當下寫入的「主隊名N號：X分」（scorer 空＝統計歸「未指定」），
      * 事後貼進 YouTube／LINE 之前再改文字即可。返回鍵一樣可以關掉。
@@ -3810,6 +3818,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun enterBreakMode() {
         if (isBreakMode) return
         if (streamWidthForOverlay <= 0 || streamHeightForOverlay <= 0) return
+        // v0.19.5：切進休息畫面代表這一段操作結束，還開著的選人視窗一併收掉
+        scorerPickerDialog?.dismiss()
         isBreakMode = true
         // v0.17.0（第一階段第4項）：進入休息重設碼率警告 epoch（不武裝「恢復中」寬限）
         resetBitrateWarningEpoch(armRecovering = false)
