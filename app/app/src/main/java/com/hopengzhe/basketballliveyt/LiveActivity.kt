@@ -2464,59 +2464,17 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         binding.btnPeriodPlus.setOnClickListener { changePeriod(1) }
         binding.btnPeriodMinus.setOnLongClickListener { resetPeriod(); true }
         binding.btnFoulAwayPlus.setOnClickListener { changeFoulAway(1) }
-        // v0.19.2：犯規 − 短按減 1、按滿 1 秒歸零（Boss 指定）。
-        // 犯規每節重算，歸零必然發生在直播中，因此不套 rejectResetWhileLive 的直播中防呆。
-        setTapAndHold(
-            binding.btnFoulHomeMinus,
-            onTap = { changeFoulHome(-1) },
-            onHold = { resetFoul(isHome = true) }
-        )
-        setTapAndHold(
-            binding.btnFoulAwayMinus,
-            onTap = { changeFoulAway(-1) },
-            onHold = { resetFoul(isHome = false) }
-        )
+        // v0.19.3：犯規 − 長按歸零，比照分數 −1／節數 − 的做法走 Android 內建長按（約 0.5 秒），
+        // 一併沿用「直播中禁用，需先收播」的防呆。比賽中每節的犯規改由 changePeriod 自動歸零。
+        binding.btnFoulHomeMinus.setOnClickListener { changeFoulHome(-1) }
+        binding.btnFoulAwayMinus.setOnClickListener { changeFoulAway(-1) }
+        binding.btnFoulHomeMinus.setOnLongClickListener { resetFoul(isHome = true); true }
+        binding.btnFoulAwayMinus.setOnLongClickListener { resetFoul(isHome = false); true }
     }
 
-    /**
-     * v0.19.2：短按／長按同一顆按鈕。Android 內建長按約 0.5 秒（分數、節數歸零走內建），
-     * 犯規歸零 Boss 指定要按滿 [FOUL_RESET_HOLD_MS]，所以自己計時。
-     *
-     * onTouch 一律回傳 false（不吃掉事件），按鈕原本的按下動畫與 click 照常；
-     * 計時器跑到就把 [held] 立起來，讓同一次觸摸放開時的 click 不要再減 1。
-     * ponytail: 只有犯規兩顆按鈕用得到，不抽成共用 View extension。
-     */
-    @android.annotation.SuppressLint("ClickableViewAccessibility")
-    private fun setTapAndHold(button: View, onTap: () -> Unit, onHold: () -> Unit) {
-        val handler = android.os.Handler(android.os.Looper.getMainLooper())
-        var held = false
-        val holdRunnable = Runnable {
-            held = true
-            onHold()
-        }
-        button.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    held = false
-                    handler.postDelayed(holdRunnable, FOUL_RESET_HOLD_MS)
-                }
-                // 按住後滑出按鈕範圍就取消計時（原生 click 也是滑出就不算），滑回來不重新計時
-                MotionEvent.ACTION_MOVE ->
-                    if (event.x < 0 || event.y < 0 ||
-                        event.x > button.width || event.y > button.height
-                    ) {
-                        handler.removeCallbacks(holdRunnable)
-                    }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
-                    handler.removeCallbacks(holdRunnable)
-            }
-            false
-        }
-        button.setOnClickListener { if (!held) onTap() }
-    }
-
-    /** v0.19.2：該隊犯規次數歸零（燒入計分板的 4 格燈號同步全滅）。 */
+    /** v0.19.3：該隊犯規次數歸零（燒入計分板的 4 格燈號同步全滅）；比照分數／節數歸零，直播中禁用。 */
     private fun resetFoul(isHome: Boolean) {
+        if (rejectResetWhileLive()) return
         if (isHome) foulHome = 0 else foulAway = 0
         refreshScoreboardOverlay()
         val teamName = if (isHome) teamHomeName else teamAwayName
@@ -2563,6 +2521,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.16.0：功能三——切節數當下自動結算各節分數（見計畫書「各節分數自動結算」）
         if (delta > 0) settleQuarterOnAdvance(oldPeriod)
         else settleQuarterOnRewind(period)
+        // v0.19.3：籃球團隊犯規每節重算，換節（含往回退）當下兩隊犯規一併歸零（Boss 指定）
+        foulHome = 0
+        foulAway = 0
         persistQuarterScores()
         refreshScoreboardOverlay()
     }
@@ -4324,8 +4285,6 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         const val PANEL_ANIM_DURATION_MS = 220L
         // v0.6.0：犯規上限由 5 改為 4（燒入計分板改用 4 格燈號，滿 4 格＝加罰）
         const val MAX_FOUL_COUNT = 4
-        // v0.19.2：犯規 − 按滿這麼久＝該隊犯規歸零（Boss 指定 1 秒；內建長按只要約 0.5 秒，比賽中容易誤觸）
-        const val FOUL_RESET_HOLD_MS = 1000L
         // 比分方塊固定以 3 位數寬度繪製（見 SCORE_BOX_WIDTH_REFERENCE_TEXT），分數上限同步夾在 3 位數內避免溢出
         const val MAX_SCORE = 999
         // v0.19.0：得分者選擇視窗一列幾顆姓名按鈕。直播畫面鎖橫式、螢幕高度吃緊，
