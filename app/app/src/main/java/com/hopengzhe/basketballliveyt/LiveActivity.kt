@@ -602,6 +602,10 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private var rosterGrade: String = StreamPrefs.DEFAULT_ROSTER_GRADE
     private var roster: List<String> = emptyList()
 
+    // v0.19.4：目前開著的得分者選擇視窗。下一次主隊加分會直接把它關掉，
+    // 那筆標記就維持加分當下寫入的「主隊名N號：X分」（＝舊版按「取消」的結果）。
+    private var scorerPickerDialog: AlertDialog? = null
+
     // v0.16.0：功能三——休息畫面四節計分表。各節已結算分數（-1＝該節尚未結算），
     // 切節數當下結算（見 changePeriod），StreamPrefs 持久化防閃退／重開恢復。
     private var quarterScoresHome = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
@@ -861,6 +865,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     }
 
     override fun onDestroy() {
+        // v0.19.4：選人視窗還開著就結束 Activity 會 WindowLeaked，先收掉再往下走
+        scorerPickerDialog?.dismiss()
         super.onDestroy()
         // v0.10.0：App 中途被殺也要清 MediaStore pending／關閉錄影 fd（計畫書已知風險段）
         if (isRecordingActive) {
@@ -3540,14 +3546,21 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     }
 
     /**
-     * v0.19.0：得分者選擇——主隊加分後跳出本場年級的 12 位姓名大按鈕（一列 3 顆），點下即關並把
-     * [marker] 的說明文字改成「王小明：2分」。取消／返回不做事，那筆維持加分當下寫入的
-     * 「主隊名N號：X分」，事後貼進 YouTube／LINE 之前再改文字即可。
+     * v0.19.0：得分者選擇——主隊加分後跳出本場年級的姓名大按鈕（6 欄 2 列），點下即關並把
+     * [marker] 的說明文字改成「王小明：2分」。
      *
-     * 名單為空時呼叫端就不會叫到這裡。對話框是 modal，底下計分鈕點不到，因此不另外禁用按鈕；
-     * [selectionDone] 只擋同一個視窗內的重複點擊（快速雙擊）。
+     * v0.19.4：取消鈕移除。沒選人就直接再按一次主隊加分＝這個視窗立刻關掉、換新的那球開新視窗，
+     * 沒選到的那筆維持加分當下寫入的「主隊名N號：X分」（scorer 空＝統計歸「未指定」），
+     * 事後貼進 YouTube／LINE 之前再改文字即可。返回鍵一樣可以關掉。
+     *
+     * 視窗因此不能再是 modal——加了 [WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL]，
+     * 視窗以外的觸控（底下的計分鈕）才會穿透過去。
+     *
+     * 名單為空時呼叫端就不會叫到這裡。[selectionDone] 只擋同一個視窗內的重複點擊（快速雙擊）。
      */
     private fun showScorerPickerDialog(marker: HighlightMarker, delta: Int) {
+        // 上一球還沒選人就又進球了：關掉舊視窗，那筆就停在「主隊名N號：X分」
+        scorerPickerDialog?.dismiss()
         val density = resources.displayMetrics.density
         val paddingPx = (12 * density).toInt()
         val buttonHeightPx = (48 * density).toInt()
@@ -3607,14 +3620,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             }
             container.addView(row)
         }
-        // 取消自己排一列（視窗背景透明後，系統的對話框按鈕列會看不清楚）
-        container.addView(
-            pickerButton(getString(R.string.dialog_cancel_button)) { dialog.dismiss() },
-            android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, buttonHeightPx
-            ).apply { setMargins(gapPx / 2, gapPx, gapPx / 2, gapPx / 2) }
-        )
-
+        scorerPickerDialog = dialog
+        dialog.setOnDismissListener { if (scorerPickerDialog === dialog) scorerPickerDialog = null }
         dialog.show()
         // 對話框預設有最大寬度（橫式下姓名會被截成一個字），拉滿螢幕寬並拿掉背景與變暗，
         // 讓 Boss 選人時仍看得到後面的直播畫面
@@ -3625,6 +3632,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             )
             setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             setDimAmount(0f)
+            // v0.19.4：視窗以外的觸控穿透到底下的 Activity，選人視窗開著時計分鈕仍按得到
+            addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
         }
     }
 
@@ -4290,6 +4299,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.19.0：得分者選擇視窗一列幾顆姓名按鈕。直播畫面鎖橫式、螢幕高度吃緊，
         // 12 位排 6 欄 2 列才不會被對話框高度截掉（3 欄 4 列實測會看不到後面幾位）。
         const val SCORER_PICKER_COLUMNS = 6
+        // 名單上限 12（StreamPrefs.ROSTER_MAX_SIZE）÷ 6 欄＝最多 2 列，視窗高度固定約 132dp、
+        // 垂直置中不會蓋到貼齊底部的計分鈕；改動這兩個數字前要重新確認會不會蓋住
         const val SCORER_PICKER_TEXT_SP = 15f
         // 半透明——選人當下仍看得到後面的直播畫面
         const val SCORER_PICKER_BUTTON_ALPHA = 0.8f
