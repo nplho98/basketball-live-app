@@ -1712,8 +1712,6 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
         // 直播中鎖定設定入口／關閉軟體（降低透明度顯示鎖定狀態），分享按鈕不受影響、任何時候都能按
         binding.btnSettingsEntry.alpha = if (live) LIVE_LOCKED_BUTTON_ALPHA else 1f
-        // v0.20.0：四項數據與得分標記一致，未開播不記錄——變淡表示現在按不了
-        binding.statButtonRow.alpha = if (live) STAT_ROW_ALPHA else STAT_ROW_ALPHA * LIVE_LOCKED_BUTTON_ALPHA
         binding.btnCloseApp.alpha = if (live) LIVE_LOCKED_BUTTON_ALPHA else 1f
     }
 
@@ -4583,8 +4581,6 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // 半透明——選人當下仍看得到後面的直播畫面
         const val SCORER_PICKER_BUTTON_ALPHA = 0.8f
 
-        // v0.20.1：四項數據按鈕列的透明度比照「休息畫面」等底部按鈕群（Boss 指定一致）
-        const val STAT_ROW_ALPHA = 0.6f
         // 球員數據表 12 列 × 6 欄，橫式螢幕高度吃緊，字級比選人視窗小
         const val PLAYER_STATS_TEXT_SP = 12f
 

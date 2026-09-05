@@ -954,7 +954,7 @@
                 android:gravity="center"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="6dp"
                 android:paddingHorizontal="7dp"
                 android:paddingVertical="4dp"
                 android:background="@drawable/bg_round_button_dark"
