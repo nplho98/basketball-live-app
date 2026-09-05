@@ -65,6 +65,31 @@ class PlayerStatsTest {
     }
 
     @Test
+    fun `全形補位讓個位數與兩位數等寬`() {
+        assertEquals("　７", toFullWidthPadded(7))
+        assertEquals("１０", toFullWidthPadded(10))
+        assertEquals("１００", toFullWidthPadded(100))
+        assertEquals("　０", toFullWidthPadded(0))
+    }
+
+    @Test
+    fun `姓名補到指定寬度`() {
+        assertEquals("劉衡　", padName("劉衡", 3))
+        assertEquals("何祈叡", padName("何祈叡", 3))
+    }
+
+    @Test
+    fun `失誤也會進統計與資料列`() {
+        val book = PlayerStatBook()
+        book.add("王小明", PlayerStatType.TURNOVER, 2)
+        val restored = PlayerStatBook.fromJsonString(book.toJsonString())
+        assertEquals(2, restored.get("王小明", PlayerStatType.TURNOVER))
+        val rows = buildPlayerStatRows(listOf("王小明"), emptyList(), restored)
+        assertEquals(2, rows.single().turnover)
+        assertEquals(2, rows.single().statOf(PlayerStatType.TURNOVER))
+    }
+
+    @Test
     fun `名單為空且沒有任何得分時不產生任何列`() {
         assertTrue(buildPlayerStatRows(emptyList(), emptyList(), PlayerStatBook()).isEmpty())
     }

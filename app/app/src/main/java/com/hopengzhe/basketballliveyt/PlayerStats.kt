@@ -15,8 +15,10 @@ import java.io.File
 enum class PlayerStatType(val jsonKey: String) {
     REBOUND("reb"),
     ASSIST("ast"),
+    /** v0.21.0：顯示名稱由「阻攻」改「火鍋」（Boss 指定），jsonKey 維持 blk 以相容既有存檔。 */
     BLOCK("blk"),
-    STEAL("stl")
+    STEAL("stl"),
+    TURNOVER("tov")
 }
 
 /**
@@ -84,6 +86,7 @@ data class PlayerStatRow(
     val assist: Int,
     val block: Int,
     val steal: Int,
+    val turnover: Int = 0,
     val isUnassigned: Boolean = false
 ) {
     fun statOf(type: PlayerStatType): Int = when (type) {
@@ -91,8 +94,27 @@ data class PlayerStatRow(
         PlayerStatType.ASSIST -> assist
         PlayerStatType.BLOCK -> block
         PlayerStatType.STEAL -> steal
+        PlayerStatType.TURNOVER -> turnover
     }
 }
+
+/**
+ * v0.21.0：貼到 LINE／YouTube 的對齊——**數字改全形、個位數前補一個全形空白**。
+ *
+ * LINE 用比例字體：中文字是全形（1 em），半形數字只有半個 em，所以「籃板7」與「籃板10」
+ * 差的是半個字寬，補半形空白也補不準（多數字體的空白比數字還窄）。
+ * 全形數字與全形空白都剛好 1 em，補起來每欄固定兩個字寬，上下才對得齊。
+ */
+fun toFullWidthPadded(value: Int, width: Int = 2): String {
+    val digits = value.toString().map { char ->
+        if (char in '0'..'9') char + 0xFEE0 else char
+    }.joinToString("")
+    return "\u3000".repeat((width - digits.length).coerceAtLeast(0)) + digits
+}
+
+/** 姓名長度不一（兩字／三字）同樣會讓後面整排歪掉，補全形空白到本場最長的姓名寬度。 */
+fun padName(name: String, width: Int): String =
+    name + "\u3000".repeat((width - name.length).coerceAtLeast(0))
 
 /**
  * 球員數據表：**名單 12 人全部列出（整場掛零也列，Boss 指定）**，
@@ -111,7 +133,8 @@ fun buildPlayerStatRows(
         rebound = book.get(name, PlayerStatType.REBOUND),
         assist = book.get(name, PlayerStatType.ASSIST),
         block = book.get(name, PlayerStatType.BLOCK),
-        steal = book.get(name, PlayerStatType.STEAL)
+        steal = book.get(name, PlayerStatType.STEAL),
+        turnover = book.get(name, PlayerStatType.TURNOVER)
     )
 
     val inRoster = roster.map { rowOf(it) }
@@ -122,7 +145,7 @@ fun buildPlayerStatRows(
         .map { rowOf(it) }
         .sortedWith(compareByDescending<PlayerStatRow> { it.points })
     val unassigned = pointsOf[""]?.takeIf { it > 0 }
-        ?.let { listOf(PlayerStatRow("", it, 0, 0, 0, 0, isUnassigned = true)) }
+        ?.let { listOf(PlayerStatRow("", it, 0, 0, 0, 0, 0, isUnassigned = true)) }
         ?: emptyList()
     return inRoster + outsiders + unassigned
 }

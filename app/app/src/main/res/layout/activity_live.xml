@@ -586,6 +586,24 @@
             android:textColor="@color/white"
             android:textSize="10sp" />
 
+        <Button
+            android:id="@+id/btnStatTurnover"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:maxLines="1"
+            android:paddingHorizontal="2dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_round_button_dark"
+            android:backgroundTint="@null"
+            android:text="@string/stat_turnover_button"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
     </LinearLayout>
 
     <!-- ===================== 左側欄（往左收）：開播/收播、分享 ===================== -->

@@ -3699,7 +3699,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             binding.btnStatRebound to PlayerStatType.REBOUND,
             binding.btnStatAssist to PlayerStatType.ASSIST,
             binding.btnStatBlock to PlayerStatType.BLOCK,
-            binding.btnStatSteal to PlayerStatType.STEAL
+            binding.btnStatSteal to PlayerStatType.STEAL,
+            binding.btnStatTurnover to PlayerStatType.TURNOVER
         ).forEach { (button, type) ->
             button.setOnClickListener { onStatButtonClick(type) }
         }
@@ -3733,6 +3734,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             PlayerStatType.ASSIST -> R.string.stat_assist_button
             PlayerStatType.BLOCK -> R.string.stat_block_button
             PlayerStatType.STEAL -> R.string.stat_steal_button
+            PlayerStatType.TURNOVER -> R.string.stat_turnover_button
         }
     )
 
@@ -3775,6 +3777,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         fun panelButton(label: String, onClick: () -> Unit) = android.widget.Button(this).apply {
             text = label
             isAllCaps = false
+            minHeight = 0
+            minimumHeight = 0
+            setPadding(paddingPx, (2 * density).toInt(), paddingPx, (2 * density).toInt())
             textSize = PLAYER_STATS_TEXT_SP
             setTextColor(getColor(R.color.white))
             background = androidx.core.content.ContextCompat.getDrawable(
@@ -3789,7 +3794,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
         fun statsRow() = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
-            setPadding(0, (3 * density).toInt(), 0, (3 * density).toInt())
+            setPadding(0, (1 * density).toInt(), 0, (1 * density).toInt())
         }
 
         lateinit var rebuild: () -> Unit
@@ -3815,6 +3820,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                 })
                 addView(panelButton(getString(R.string.player_stats_edit_roster_button)) {
                     showRosterEditDialog { rebuild() }
+                })
+                // v0.21.0：計分板上的賽事名稱與球員名單年級是兩套資料（一個是手打文字、一個是名單設定），
+                // 切年級不會動到它；直播中系統設定又是鎖的，所以編輯入口也放這裡（Boss 指定）
+                addView(panelButton(getString(R.string.player_stats_edit_event_button)) {
+                    showEventNameEditDialog()
                 })
             })
 
@@ -3879,6 +3889,48 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             .create()
         playerStatsDialog = dialog
         dialog.setOnDismissListener { if (playerStatsDialog === dialog) playerStatsDialog = null }
+        dialog.show()
+        // 橫式螢幕高度只有 360dp 上下，不拉滿的話 12 列表格只看得到兩三列
+        dialog.window?.setLayout(
+            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+            android.view.WindowManager.LayoutParams.MATCH_PARENT
+        )
+    }
+
+    /**
+     * v0.21.0：賽事名稱編輯（燒在計分板左側那兩行字）。存完立即重繪燒入濾鏡，直播中改也會馬上反映。
+     * 內容完全由 Boss 決定，程式不自動代換年級字樣——年級寫法太多種（7年級／七年級／G7），改錯比不改更糟。
+     */
+    private fun showEventNameEditDialog() {
+        val paddingPx = (16 * resources.displayMetrics.density).toInt()
+        val editText = android.widget.EditText(this).apply {
+            setText(StreamPrefs.getEventName(this@LiveActivity))
+            hint = getString(R.string.player_stats_event_edit_hint)
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            minLines = 2
+            maxLines = 2
+            setSingleLine(false)
+            setSelection(text.length)
+        }
+        val editContainer = android.widget.FrameLayout(this).apply {
+            setPadding(paddingPx, paddingPx / 2, paddingPx, 0)
+            addView(editText)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.player_stats_event_edit_title))
+            .setView(editContainer)
+            .setPositiveButton(getString(R.string.dialog_confirm_button)) { _, _ ->
+                StreamPrefs.saveEventName(this, editText.text.toString())
+                eventName = StreamPrefs.getEventName(this)
+                refreshScoreboardOverlay()
+                Toast.makeText(this, getString(R.string.player_stats_event_saved_toast), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(getString(R.string.dialog_cancel_button), null)
+            .create()
+        // 與名單編輯同理，開著時 Activity 結束會 WindowLeaked
+        rosterEditDialog?.dismiss()
+        rosterEditDialog = dialog
+        dialog.setOnDismissListener { if (rosterEditDialog === dialog) rosterEditDialog = null }
         dialog.show()
     }
 
@@ -4013,21 +4065,41 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             .joinToString("\n")
 
     /**
-     * v0.19.1：統計只接在「分享LINE」的文字後面（Boss 指定；複製章節格式維持原樣）。
+     * v0.19.1：統計只出現在「分享LINE」（複製章節格式維持原樣）；v0.21.1 起排在章節文字**上方**。
      * v0.20.0：改成球員數據表——名單 12 人全部列出（掛零也列），每列＝姓名、得分、籃板、助攻、阻攻、抄截；
      * 名單外但有數據的人（切年級後的前一批）接在後面，得分的「未指定」固定最後一列。
      */
     private fun buildScorerSummaryText(): String {
         val rows = buildPlayerStatRows(roster, summarizeScorers(highlightMarkers), playerStatBook)
         if (rows.isEmpty()) return ""
+        // v0.21.0：姓名補到本場最長的寬度、數字改全形補位，貼到 LINE 才會上下對齊
+        val nameWidth = rows.maxOf {
+            if (it.isUnassigned) getString(R.string.highlight_stats_unassigned).length else it.name.length
+        }
         val lines = rows.map { row ->
-            val name = if (row.isUnassigned) getString(R.string.highlight_stats_unassigned) else row.name
+            val rawName = if (row.isUnassigned) getString(R.string.highlight_stats_unassigned) else row.name
             getString(
                 R.string.player_stats_line,
-                name, row.points, row.rebound, row.assist, row.block, row.steal
+                padName(rawName, nameWidth),
+                toFullWidthPadded(row.points),
+                toFullWidthPadded(row.rebound),
+                toFullWidthPadded(row.assist),
+                toFullWidthPadded(row.block),
+                toFullWidthPadded(row.steal),
+                toFullWidthPadded(row.turnover)
             )
         }
         return "\n\n" + getString(R.string.highlight_stats_heading) + "\n" + lines.joinToString("\n")
+    }
+
+    /**
+     * v0.21.1：分享 LINE 的排版——**球員數據在上、標記章節在下**（Boss 指定）。
+     * 沒有任何統計時就只有章節文字，不會多出空行。複製章節格式維持原樣，不帶統計。
+     */
+    private fun buildLineShareText(): String {
+        val stats = buildScorerSummaryText().trimStart('\n')
+        val chapters = buildHighlightChapterText()
+        return if (stats.isEmpty()) chapters else stats + "\n\n" + chapters
     }
 
     private fun copyHighlightsAsChapterFormat() {
@@ -4044,7 +4116,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun shareHighlightsToLine() {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, buildHighlightChapterText() + buildScorerSummaryText())
+            putExtra(Intent.EXTRA_TEXT, buildLineShareText())
             `package` = LINE_PACKAGE_NAME
         }
         try {

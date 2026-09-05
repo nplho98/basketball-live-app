@@ -355,8 +355,9 @@
     <!-- v0.20.0：四項球員數據（見開發方案 Project14_四項數據統計_2026-09-05_v1.2.md） -->
     <string name="stat_rebound_button">籃板</string>
     <string name="stat_assist_button">助攻</string>
-    <string name="stat_block_button">阻攻</string>
+    <string name="stat_block_button">火鍋</string>
     <string name="stat_steal_button">抄截</string>
+    <string name="stat_turnover_button">失誤</string>
     <string name="stat_locked_not_live_message">開播後才能記錄球員數據</string>
     <string name="stat_roster_empty_message">尚未設定球員名單，請先按「球員數據」編輯名單</string>
     <string name="stat_recorded_toast">%1$s %2$s +1</string>
@@ -367,9 +368,13 @@
     <string name="player_stats_empty">尚未設定球員名單</string>
     <string name="player_stats_grade_button">年級：%1$s</string>
     <string name="player_stats_edit_roster_button">編輯名單</string>
+    <string name="player_stats_edit_event_button">賽事名稱</string>
+    <string name="player_stats_event_edit_title">賽事名稱（燒在計分板左側，最多兩行）</string>
+    <string name="player_stats_event_edit_hint">第一行：賽事；第二行：隊伍／年級</string>
+    <string name="player_stats_event_saved_toast">賽事名稱已更新</string>
     <string name="player_stats_close_button">關閉</string>
-    <string name="player_stats_hint">四項數據：短按 +1、長按 −1；得分不可改</string>
-    <string name="player_stats_line">%1$s %2$d分 / 籃板%3$d / 助攻%4$d / 阻攻%5$d / 抄截%6$d</string>
+    <string name="player_stats_hint">五項數據：短按 +1、長按 −1；得分不可改</string>
+    <string name="player_stats_line">%1$s %2$s分 / 籃板%3$s / 助攻%4$s / 火鍋%5$s / 抄截%6$s / 失誤%7$s</string>
 
     <!-- v0.19.0：年級選項，需與 StreamPrefs.ROSTER_GRADES 一致 -->
     <string-array name="roster_grade_options">

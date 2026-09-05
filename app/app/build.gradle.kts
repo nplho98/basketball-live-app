@@ -11,8 +11,8 @@ android {
         applicationId = "com.hopengzhe.basketballliveyt"
         minSdk = 26
         targetSdk = 35
-        versionCode = 179
-        versionName = "0.20.6"
+        versionCode = 181
+        versionName = "0.21.1"
     }
 
     buildTypes {
