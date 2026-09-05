@@ -490,6 +490,87 @@
 
     </LinearLayout>
 
+    <!-- ===================== v0.20.0：四項球員數據按鈕 =====================
+         Boss 指定位置：半透明疊在底部置中的燒入計分板上。該區原本沒有任何可點元件
+         （主隊計分鈕在左下、客隊在右下），計分板本身是燒進影像的濾鏡層，這四顆鈕只存在於
+         操作者的 APP 介面層，不會出現在直播畫面。按一下直接跳選人名單，選到名字才計數。 -->
+    <LinearLayout
+        android:id="@+id/statButtonRow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:alpha="0.55"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="10dp">
+
+        <Button
+            android:id="@+id/btnStatRebound"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="56dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_round_button_dark"
+            android:backgroundTint="@null"
+            android:text="@string/stat_rebound_button"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
+        <Button
+            android:id="@+id/btnStatAssist"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="56dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_round_button_dark"
+            android:backgroundTint="@null"
+            android:text="@string/stat_assist_button"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
+        <Button
+            android:id="@+id/btnStatBlock"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="56dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_round_button_dark"
+            android:backgroundTint="@null"
+            android:text="@string/stat_block_button"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
+        <Button
+            android:id="@+id/btnStatSteal"
+            style="@null"
+            android:gravity="center"
+            android:layout_width="56dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/bg_round_button_dark"
+            android:backgroundTint="@null"
+            android:text="@string/stat_steal_button"
+            android:textColor="@color/white"
+            android:textSize="10sp" />
+
+    </LinearLayout>
+
     <!-- ===================== 左側欄（往左收）：開播/收播、分享 ===================== -->
     <LinearLayout
         android:id="@+id/leftPanelContainer"
@@ -845,6 +926,23 @@
                 android:background="@drawable/bg_round_button_dark"
                 android:backgroundTint="@null"
                 android:text="@string/focus_lock_button"
+                android:textColor="@color/white"
+                android:textSize="8sp" />
+
+            <!-- v0.20.0：球員數據入口。直播中不鎖（系統設定維持鎖住），
+                 比賽中改年級與名單只能從這裡進 -->
+            <Button
+                android:id="@+id/btnPlayerStats"
+                style="@null"
+                android:gravity="center"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:paddingHorizontal="7dp"
+                android:paddingVertical="4dp"
+                android:background="@drawable/bg_round_button_dark"
+                android:backgroundTint="@null"
+                android:text="@string/player_stats_button"
                 android:textColor="@color/white"
                 android:textSize="8sp" />
 

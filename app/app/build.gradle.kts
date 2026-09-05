@@ -11,8 +11,8 @@ android {
         applicationId = "com.hopengzhe.basketballliveyt"
         minSdk = 26
         targetSdk = 35
-        versionCode = 172
-        versionName = "0.19.5"
+        versionCode = 173
+        versionName = "0.20.0"
     }
 
     buildTypes {
@@ -93,6 +93,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
 
     testImplementation("junit:junit:4.13.2")
+    // v0.20.0：PlayerStatBook 存讀用 org.json，單元測試需要真的實作（stub android.jar 會丟 not mocked）
+    testImplementation("org.json:json:20231013")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }

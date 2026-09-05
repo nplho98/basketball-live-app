@@ -606,6 +606,12 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     // 那筆標記就維持加分當下寫入的「主隊名N號：X分」（＝舊版按「取消」的結果）。
     private var scorerPickerDialog: AlertDialog? = null
 
+    // v0.20.0：四項球員數據（籃板／助攻／阻攻／抄截）。與得分不同，這四項不產生精彩標記，
+    // 按下按鈕當下什麼都不寫，選到名字才累加——所有關窗路徑都天然作廢，見 PlayerStats.kt。
+    private var playerStatBook = PlayerStatBook()
+    private var playerStatsDialog: AlertDialog? = null
+    private var rosterEditDialog: AlertDialog? = null
+
     // v0.16.0：功能三——休息畫面四節計分表。各節已結算分數（-1＝該節尚未結算），
     // 切節數當下結算（見 changePeriod），StreamPrefs 持久化防閃退／重開恢復。
     private var quarterScoresHome = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
@@ -810,6 +816,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         })
 
         setupScoreButtons()
+        setupStatButtons()
         setupTopOperationButtons()
         setupLiveToggle()
         setupShareButton()
@@ -867,6 +874,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     override fun onDestroy() {
         // v0.19.4：選人視窗還開著就結束 Activity 會 WindowLeaked，先收掉再往下走
         scorerPickerDialog?.dismiss()
+        playerStatsDialog?.dismiss()
+        rosterEditDialog?.dismiss()
         super.onDestroy()
         // v0.10.0：App 中途被殺也要清 MediaStore pending／關閉錄影 fd（計畫書已知風險段）
         if (isRecordingActive) {
@@ -1523,6 +1532,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
         // v0.13.0：功能 A——本場精彩標記重新起算（新場次時間戳，收播不清除舊檔，見 HighlightMarker.kt）
         highlightMarkers.clear()
+        // v0.20.0：四項數據跟著精彩標記一起重新起算，並收掉還開著的數據視窗（避免舊場數字留在畫面上）
+        playerStatBook = PlayerStatBook()
+        playerStatsDialog?.dismiss()
         highlightSessionTimestamp = HighlightStore.newSessionTimestamp()
         liveStartElapsedMs = SystemClock.elapsedRealtime()
         // v0.10.1：直播中才顯示實際/設定碼率，第一筆數字等 onNewBitrate 回報後更新
@@ -1700,6 +1712,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
         // 直播中鎖定設定入口／關閉軟體（降低透明度顯示鎖定狀態），分享按鈕不受影響、任何時候都能按
         binding.btnSettingsEntry.alpha = if (live) LIVE_LOCKED_BUTTON_ALPHA else 1f
+        // v0.20.0：四項數據與得分標記一致，未開播不記錄——變淡表示現在按不了
+        binding.statButtonRow.alpha = if (live) STAT_ROW_ALPHA else STAT_ROW_ALPHA * LIVE_LOCKED_BUTTON_ALPHA
         binding.btnCloseApp.alpha = if (live) LIVE_LOCKED_BUTTON_ALPHA else 1f
     }
 
@@ -2447,6 +2461,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // 加分本體不變，純粹只加分不再觸發任何演出（見類別頂端 KDoc v0.14.1 條目）。
         scoreHome = (scoreHome + delta).coerceIn(0, MAX_SCORE)
         refreshScoreboardOverlay()
+        // v0.20.0：Boss 拍板 −1 也算「按了得分鈕」——不分正負都收掉還開著的選人視窗，
+        // 那筆還沒選人的四項數據就此作廢（加分路徑下面會再開一個新視窗）。
+        scorerPickerDialog?.dismiss()
         // v0.18.15：主隊（左側）加分自動記一筆精彩標記「<主隊名>N號：X分」，號碼留 N 由 Boss 事後補；
         // 減分與客隊加分不記（Boss 指定）。未開播時不記，直接加分不跳提示。
         // v0.19.0：標記先落地再選人——選人視窗開著時收播或 APP 被殺，這球都不會消失；
@@ -2465,7 +2482,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         refreshScoreboardOverlay()
         // v0.19.5：客隊（右側）加分照舊不記標記，但同樣收掉還開著的選人視窗（Boss 指定）——
         // 上一球主隊的那筆維持「主隊名N號：X分」，統計歸「未指定」。
-        if (delta > 0) scorerPickerDialog?.dismiss()
+        // v0.20.0：客隊 −1 同理，不分正負都關窗
+        scorerPickerDialog?.dismiss()
     }
 
     // ---------- 頂部操作列：主隊犯規/節數/客隊犯規（犯規 0～4；節數最低第 1 節） ----------
@@ -3566,7 +3584,16 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      *
      * 名單為空時呼叫端就不會叫到這裡。[selectionDone] 只擋同一個視窗內的重複點擊（快速雙擊）。
      */
-    private fun showScorerPickerDialog(marker: HighlightMarker, delta: Int) {
+    private fun showScorerPickerDialog(marker: HighlightMarker, delta: Int) =
+        showPlayerPickerDialog { name -> applyScorerToMarker(marker, name, delta) }
+
+    /**
+     * v0.20.0：選人視窗本體抽成共用——得分（[showScorerPickerDialog]）與四項球員數據
+     * （[onStatButtonClick]）共用同一份排版與**同一個 [scorerPickerDialog] 參照**。
+     * 共用參照是刻意的：收播／進休息畫面／按計分鈕／onDestroy 既有的關窗路徑才會一併關到這個視窗，
+     * 不必為新功能各補一條（Codex 詰問指出，見開發方案 v1.1 第 3.2b 節）。
+     */
+    private fun showPlayerPickerDialog(onPick: (String) -> Unit) {
         // 上一球還沒選人就又進球了：關掉舊視窗，那筆就停在「主隊名N號：X分」
         scorerPickerDialog?.dismiss()
         val density = resources.displayMetrics.density
@@ -3608,7 +3635,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                 val button = pickerButton(name) {
                     if (!selectionDone) {
                         selectionDone = true
-                        applyScorerToMarker(marker, name, delta)
+                        onPick(name)
                     }
                     dialog.dismiss()
                 }
@@ -3661,6 +3688,240 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
     private fun persistHighlightMarkers() {
         HighlightStore.save(this, highlightSessionTimestamp, highlightMarkers)
+    }
+
+    // ==================== v0.20.0：四項球員數據（籃板／助攻／阻攻／抄截） ====================
+
+    /**
+     * 四顆半透明鈕（疊在底部置中的燒入計分板上）。按一下＝跳選人名單，選到名字才計數；
+     * 沒選人的一律作廢，不像得分那樣留「未指定」——因為這四項沒有「計分板已經加分」這種既成事實。
+     */
+    private fun setupStatButtons() {
+        listOf(
+            binding.btnStatRebound to PlayerStatType.REBOUND,
+            binding.btnStatAssist to PlayerStatType.ASSIST,
+            binding.btnStatBlock to PlayerStatType.BLOCK,
+            binding.btnStatSteal to PlayerStatType.STEAL
+        ).forEach { (button, type) ->
+            button.setOnClickListener { onStatButtonClick(type) }
+        }
+        binding.btnPlayerStats.setOnClickListener { showPlayerStatsDialog() }
+    }
+
+    /** 未開播不記（與得分標記 [addHighlightMarker] 一致，Boss 拍板）；名單為空直接提示不開視窗。 */
+    private fun onStatButtonClick(type: PlayerStatType) {
+        if (!isLive) {
+            Toast.makeText(this, getString(R.string.stat_locked_not_live_message), Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (roster.isEmpty()) {
+            Toast.makeText(this, getString(R.string.stat_roster_empty_message), Toast.LENGTH_SHORT).show()
+            return
+        }
+        showPlayerPickerDialog { name ->
+            playerStatBook.add(name, type, 1)
+            persistPlayerStats()
+            Toast.makeText(
+                this,
+                getString(R.string.stat_recorded_toast, name, statTypeLabel(type)),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun statTypeLabel(type: PlayerStatType): String = getString(
+        when (type) {
+            PlayerStatType.REBOUND -> R.string.stat_rebound_button
+            PlayerStatType.ASSIST -> R.string.stat_assist_button
+            PlayerStatType.BLOCK -> R.string.stat_block_button
+            PlayerStatType.STEAL -> R.string.stat_steal_button
+        }
+    )
+
+    private fun persistPlayerStats() {
+        PlayerStatStore.save(this, highlightSessionTimestamp, playerStatBook)
+    }
+
+    /**
+     * 球員數據視窗（右側欄入口，**直播中可用**）：名單 12 人全部列出（掛零也列），
+     * 四項每格短按 +1、長按 −1；得分欄唯讀（來自精彩標記，Boss 拍板賽後人工改）。
+     * 視窗內另含年級切換與編輯名單——直播中系統設定是鎖住的，比賽中要改只能從這裡改。
+     *
+     * ponytail: 程式化建構表格（比照 [showHighlightListDialog]／[showPlayerPickerDialog]），
+     * 不新增 layout 檔、不用 RecyclerView；每格用短按／長按取代 [+][−] 兩顆鈕，橫式寬度才夠。
+     */
+    private fun showPlayerStatsDialog() {
+        // 選人視窗的按鈕捕捉的是開窗當下的姓名，這裡可能改年級／改名單，先收掉避免選到舊名字
+        scorerPickerDialog?.dismiss()
+        playerStatsDialog?.dismiss()
+        val density = resources.displayMetrics.density
+        val paddingPx = (12 * density).toInt()
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+        }
+        val scrollView = android.widget.ScrollView(this).apply { addView(container) }
+
+        fun textCell(text: String, weight: Float, bold: Boolean = false) =
+            android.widget.TextView(this).apply {
+                this.text = text
+                gravity = android.view.Gravity.CENTER
+                setTextColor(getColor(R.color.white))
+                textSize = PLAYER_STATS_TEXT_SP
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, weight
+                )
+            }
+
+        fun panelButton(label: String, onClick: () -> Unit) = android.widget.Button(this).apply {
+            text = label
+            isAllCaps = false
+            textSize = PLAYER_STATS_TEXT_SP
+            setTextColor(getColor(R.color.white))
+            background = androidx.core.content.ContextCompat.getDrawable(
+                this@LiveActivity, R.drawable.bg_round_button_dark
+            )
+            backgroundTintList = null
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+            )
+            setOnClickListener { onClick() }
+        }
+
+        fun statsRow() = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding(0, (3 * density).toInt(), 0, (3 * density).toInt())
+        }
+
+        lateinit var rebuild: () -> Unit
+        rebuild = {
+            container.removeAllViews()
+
+            container.addView(android.widget.TextView(this).apply {
+                text = getString(R.string.player_stats_title, rosterGrade)
+                setTextColor(getColor(R.color.white))
+                textSize = PLAYER_STATS_TEXT_SP + 3f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+
+            container.addView(statsRow().apply {
+                // 三個年級輪流切；saveActiveRosterGrade 只寫偏好，同一個 Activity 開關對話框
+                // 不會觸發 onStart 重讀，所以這裡切完要立刻 reloadRoster
+                addView(panelButton(getString(R.string.player_stats_grade_button, rosterGrade)) {
+                    val grades = StreamPrefs.ROSTER_GRADES
+                    val next = grades[(grades.indexOf(rosterGrade) + 1) % grades.size]
+                    StreamPrefs.saveActiveRosterGrade(this@LiveActivity, next)
+                    reloadRoster()
+                    rebuild()
+                })
+                addView(panelButton(getString(R.string.player_stats_edit_roster_button)) {
+                    showRosterEditDialog { rebuild() }
+                })
+            })
+
+            container.addView(android.widget.TextView(this).apply {
+                text = getString(R.string.player_stats_hint)
+                setTextColor(getColor(R.color.text_secondary))
+                textSize = PLAYER_STATS_TEXT_SP - 1f
+            })
+
+            // 判空要用合併後的列，不能只看名單——切到還沒建名單的年級時，
+            // 既有的四項數據仍要看得到才改得動（Codex 第二輪詰問）
+            val statRows = buildPlayerStatRows(roster, summarizeScorers(highlightMarkers), playerStatBook)
+            if (statRows.isEmpty()) {
+                container.addView(android.widget.TextView(this).apply {
+                    text = getString(R.string.player_stats_empty)
+                    setTextColor(getColor(R.color.white))
+                    textSize = PLAYER_STATS_TEXT_SP
+                })
+            } else {
+                container.addView(statsRow().apply {
+                    addView(textCell(getString(R.string.player_stats_header_name), 2f, bold = true))
+                    addView(textCell(getString(R.string.player_stats_header_points), 1f, bold = true))
+                    PlayerStatType.entries.forEach { addView(textCell(statTypeLabel(it), 1f, bold = true)) }
+                })
+
+                statRows.forEach { statRow ->
+                    val displayName =
+                        if (statRow.isUnassigned) getString(R.string.highlight_stats_unassigned) else statRow.name
+                    container.addView(statsRow().apply {
+                        addView(textCell(displayName, 2f))
+                        addView(textCell(statRow.points.toString(), 1f))
+                        PlayerStatType.entries.forEach { type ->
+                            val cell = textCell(statRow.statOf(type).toString(), 1f)
+                            // 「未指定」只可能有得分，四項不會有這種列，因此不給點
+                            if (!statRow.isUnassigned) {
+                                cell.background = androidx.core.content.ContextCompat.getDrawable(
+                                    this@LiveActivity, R.drawable.bg_round_button_dark
+                                )
+                                cell.setOnClickListener {
+                                    playerStatBook.add(statRow.name, type, 1)
+                                    persistPlayerStats()
+                                    rebuild()
+                                }
+                                cell.setOnLongClickListener {
+                                    playerStatBook.add(statRow.name, type, -1)
+                                    persistPlayerStats()
+                                    rebuild()
+                                    true
+                                }
+                            }
+                            addView(cell)
+                        }
+                    })
+                }
+            }
+        }
+        rebuild()
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(scrollView)
+            .setPositiveButton(getString(R.string.player_stats_close_button), null)
+            .create()
+        playerStatsDialog = dialog
+        dialog.setOnDismissListener { if (playerStatsDialog === dialog) playerStatsDialog = null }
+        dialog.show()
+    }
+
+    /**
+     * 名單編輯對話框——輸入方式與設定頁那個相同（一行一位、最多 12 位），差別在改完要立即
+     * [reloadRoster] 並重繪數據表。直播中設定頁是鎖住的，這裡是比賽中唯一能改名單的入口。
+     */
+    private fun showRosterEditDialog(onSaved: () -> Unit) {
+        val paddingPx = (16 * resources.displayMetrics.density).toInt()
+        val editText = android.widget.EditText(this).apply {
+            setText(StreamPrefs.serializeRoster(StreamPrefs.getRoster(this@LiveActivity, rosterGrade)))
+            hint = getString(R.string.settings_roster_edit_hint)
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            minLines = 6
+            maxLines = StreamPrefs.ROSTER_MAX_SIZE
+            setSingleLine(false)
+            setSelection(text.length)
+        }
+        val editContainer = android.widget.FrameLayout(this).apply {
+            setPadding(paddingPx, paddingPx / 2, paddingPx, 0)
+            addView(editText)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.settings_roster_edit_title, rosterGrade))
+            .setView(editContainer)
+            .setPositiveButton(getString(R.string.dialog_confirm_button)) { _, _ ->
+                StreamPrefs.saveRoster(this, rosterGrade, editText.text.toString())
+                reloadRoster()
+                Toast.makeText(
+                    this,
+                    getString(R.string.settings_roster_saved_toast, rosterGrade, roster.size),
+                    Toast.LENGTH_SHORT
+                ).show()
+                onSaved()
+            }
+            .setNegativeButton(getString(R.string.dialog_cancel_button), null)
+            .create()
+        // 開著時 Activity 被結束會 WindowLeaked，留參照給 onDestroy 收（Codex 第二輪詰問）
+        rosterEditDialog = dialog
+        dialog.setOnDismissListener { if (rosterEditDialog === dialog) rosterEditDialog = null }
+        dialog.show()
     }
 
     /**
@@ -3754,15 +4015,19 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             .joinToString("\n")
 
     /**
-     * v0.19.1：本場得分統計，只接在「分享LINE」的文字後面（Boss 指定；複製章節格式維持原樣）。
-     * 沒有任何可統計的標記時回傳空字串，分享內容就跟以前一樣。
+     * v0.19.1：統計只接在「分享LINE」的文字後面（Boss 指定；複製章節格式維持原樣）。
+     * v0.20.0：改成球員數據表——名單 12 人全部列出（掛零也列），每列＝姓名、得分、籃板、助攻、阻攻、抄截；
+     * 名單外但有數據的人（切年級後的前一批）接在後面，得分的「未指定」固定最後一列。
      */
     private fun buildScorerSummaryText(): String {
-        val totals = summarizeScorers(highlightMarkers)
-        if (totals.isEmpty()) return ""
-        val lines = totals.map { total ->
-            val name = total.scorer.ifEmpty { getString(R.string.highlight_stats_unassigned) }
-            getString(R.string.highlight_stats_line, name, total.points)
+        val rows = buildPlayerStatRows(roster, summarizeScorers(highlightMarkers), playerStatBook)
+        if (rows.isEmpty()) return ""
+        val lines = rows.map { row ->
+            val name = if (row.isUnassigned) getString(R.string.highlight_stats_unassigned) else row.name
+            getString(
+                R.string.player_stats_line,
+                name, row.points, row.rebound, row.assist, row.block, row.steal
+            )
         }
         return "\n\n" + getString(R.string.highlight_stats_heading) + "\n" + lines.joinToString("\n")
     }
@@ -3820,6 +4085,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         if (streamWidthForOverlay <= 0 || streamHeightForOverlay <= 0) return
         // v0.19.5：切進休息畫面代表這一段操作結束，還開著的選人視窗一併收掉
         scorerPickerDialog?.dismiss()
+        // v0.20.0：休息畫面蓋住整個畫面，此時記數據沒有意義，四顆鈕一併隱藏
+        binding.statButtonRow.visibility = View.GONE
         isBreakMode = true
         // v0.17.0（第一階段第4項）：進入休息重設碼率警告 epoch（不武裝「恢復中」寬限）
         resetBitrateWarningEpoch(armRecovering = false)
@@ -3855,6 +4122,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun exitBreakMode() {
         if (!isBreakMode) return
         isBreakMode = false
+        binding.statButtonRow.visibility = View.VISIBLE
         // v0.17.0（第一階段第4項）：離開休息重設 epoch 並武裝「恢復中」寬限——前 BITRATE_RECOVERING_SAMPLES
         // 筆有效樣本顯示「恢復中」，避免恢復瞬間 I-frame burst 的碼率尖峰被誤判成警告。
         resetBitrateWarningEpoch(armRecovering = true)
@@ -4314,6 +4582,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         const val SCORER_PICKER_TEXT_SP = 15f
         // 半透明——選人當下仍看得到後面的直播畫面
         const val SCORER_PICKER_BUTTON_ALPHA = 0.8f
+
+        // v0.20.0：四項數據按鈕列疊在燒入計分板上，半透明才看得到底下的比分（Boss 指定）
+        const val STAT_ROW_ALPHA = 0.55f
+        // 球員數據表 12 列 × 6 欄，橫式螢幕高度吃緊，字級比選人視窗小
+        const val PLAYER_STATS_TEXT_SP = 12f
 
         // v0.5.0：音量鍵每次按下的變焦增量（RootEncoder setZoom 單位＝倍率，1.0＝無變焦）
         const val ZOOM_STEP = 0.15f
