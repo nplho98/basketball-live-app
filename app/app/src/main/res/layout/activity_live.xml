@@ -494,25 +494,36 @@
          Boss 指定位置：半透明疊在底部置中的燒入計分板上。該區原本沒有任何可點元件
          （主隊計分鈕在左下、客隊在右下），計分板本身是燒進影像的濾鏡層，這四顆鈕只存在於
          操作者的 APP 介面層，不會出現在直播畫面。按一下直接跳選人名單，選到名字才計數。 -->
+    <!-- 燒入計分板的上緣：濾鏡是 TranslateTo.BOTTOM 對齊、高度 OVERLAY_HEIGHT_RATIO（0.125），
+         所以它的頂邊落在畫面高度 87.5% 處。四顆鈕的下緣頂到這條線，不覆蓋計分板（Boss 指定）。 -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/scoreboardTopGuide"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.875" />
+
     <LinearLayout
         android:id="@+id/statButtonRow"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:alpha="0.55"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/scoreboardTopGuide"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginBottom="10dp">
+        android:layout_marginBottom="4dp">
 
         <Button
             android:id="@+id/btnStatRebound"
             style="@null"
             android:gravity="center"
-            android:layout_width="56dp"
+            android:layout_width="64dp"
             android:layout_height="wrap_content"
             android:minWidth="0dp"
             android:minHeight="0dp"
+            android:maxLines="1"
+            android:paddingHorizontal="2dp"
             android:paddingVertical="4dp"
             android:layout_margin="2dp"
             android:background="@drawable/bg_round_button_dark"
@@ -525,10 +536,12 @@
             android:id="@+id/btnStatAssist"
             style="@null"
             android:gravity="center"
-            android:layout_width="56dp"
+            android:layout_width="64dp"
             android:layout_height="wrap_content"
             android:minWidth="0dp"
             android:minHeight="0dp"
+            android:maxLines="1"
+            android:paddingHorizontal="2dp"
             android:paddingVertical="4dp"
             android:layout_margin="2dp"
             android:background="@drawable/bg_round_button_dark"
@@ -541,10 +554,12 @@
             android:id="@+id/btnStatBlock"
             style="@null"
             android:gravity="center"
-            android:layout_width="56dp"
+            android:layout_width="64dp"
             android:layout_height="wrap_content"
             android:minWidth="0dp"
             android:minHeight="0dp"
+            android:maxLines="1"
+            android:paddingHorizontal="2dp"
             android:paddingVertical="4dp"
             android:layout_margin="2dp"
             android:background="@drawable/bg_round_button_dark"
@@ -557,10 +572,12 @@
             android:id="@+id/btnStatSteal"
             style="@null"
             android:gravity="center"
-            android:layout_width="56dp"
+            android:layout_width="64dp"
             android:layout_height="wrap_content"
             android:minWidth="0dp"
             android:minHeight="0dp"
+            android:maxLines="1"
+            android:paddingHorizontal="2dp"
             android:paddingVertical="4dp"
             android:layout_margin="2dp"
             android:background="@drawable/bg_round_button_dark"
