@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>收播賽果圖 — 配色方案（方案1／方案3 × 三種色系）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a1a;
+    font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    color: #F6EFE0; padding: 24px;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .note { color: #999; font-size: 13px; margin-bottom: 22px; line-height: 1.75; }
+  .note b { color: #F3CF7F; }
+  .sample { margin-bottom: 34px; }
+  .sample h2 { font-size: 15px; color: #F3CF7F; margin-bottom: 4px; }
+  .sample .desc { color: #999; font-size: 13px; margin-bottom: 9px; line-height: 1.6; }
+
+  /* 16:9 模擬框＝實際 1920×1080，1/2.4 預覽 */
+  .frame {
+    width: 800px; height: 450px; background: #000;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #333; overflow: hidden;
+  }
+  .panel {
+    width: 752px; overflow: hidden; position: relative;
+    background: var(--zone-q);
+    border: 2px solid var(--frame-gold); border-radius: 14px;
+  }
+  /* 隊徽當整張圖的底圖浮水印：置中、放大、低透明度，壓在所有內容底下 */
+  .wm {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 300px; height: 300px; object-fit: contain;
+    opacity: 0.08; pointer-events: none; z-index: 1;
+  }
+  .wm08 .wm { opacity: 0.08; }
+  .wm14 .wm { opacity: 0.14; }
+  .wm22 .wm { opacity: 0.22; }
+  .noWm .wm { display: none; }
+  /* 疊法：兩區底色（.pzone 的 background）在最底 → 浮水印 z-index 1 → 文字表格 z-index 2。
+     .pzone 只給 position 不給 z-index，才不會自成堆疊脈絡把裡面的表格關在浮水印下面。 */
+  .pzone { position: relative; }
+  .panel > .qzone, .panel > .seam { position: relative; z-index: 2; }
+  .pzone > .ptable { position: relative; z-index: 2; }
+
+  /* 標題：金線缺口嵌賽事名稱 */
+  /* 左右內距一律對稱，賽事名稱才會置中在整張圖的正中央。
+     有左上隊徽時兩側各留 82px（讓出隊徽位置），沒有時兩側各 20px。 */
+  .evbar { display: flex; align-items: center; gap: 16px; padding: 8px 20px 4px; }
+  .evbar .rule { flex: 1; height: 3px; }
+  .evbar .rule.l { background: linear-gradient(90deg, transparent, var(--gold) 55%, var(--gold-dark)); }
+  .evbar .rule.r { background: linear-gradient(90deg, var(--gold-dark), var(--gold) 45%, transparent); }
+  .evbar .evname { color: var(--gold); font-size: 19px; font-weight: 700; letter-spacing: 3px; white-space: nowrap; }
+
+  /* 各節表 */
+  /* 同上：固定排版，四節欄一律等寬（原本 auto 會被兩位數的 24/13 撐開，109/73/69/69/70/66 全不一樣） */
+  .qtable { border-collapse: collapse; margin: 1px auto 6px; table-layout: fixed; width: 504px; }
+  .qtable th, .qtable td { width: 68px; }
+  .qtable .tname, .qtable thead th:first-child { width: 130px; }
+  .qtable thead th:last-child, .qtable tbody td:last-child { width: 102px; }
+  /* 欄寬固定後左右內距要收窄，否則「第1節」會被折成兩行 */
+  .qtable th, .qtable td { white-space: nowrap; }
+  .qtable thead th {
+    font-size: 12px; font-weight: 700; color: var(--gold);
+    padding: 0 4px 3px; border-bottom: 2px solid var(--gold-divider);
+  }
+  .qtable td { font-size: 17px; font-weight: 700; padding: 1px 4px; text-align: center; color: var(--ink); }
+  .qtable tbody tr:first-child td { padding-top: 4px; }
+  /* 隊名置中（Boss 2026-09-06） */
+  .qtable .tname { text-align: center; font-size: 15px; padding: 1px 4px; }
+  .qtable .totcol { color: var(--gold-num); }
+  /* 兩條直立線（Boss 2026-09-06）：隊名右側／總計左側 */
+  .qtable thead th:last-child,
+  .qtable tbody td:last-child,
+  .qtable thead th:nth-child(2),
+  .qtable tbody td:nth-child(2) { border-left: 2px solid var(--gold-divider); }
+
+  .seam { height: 5px; background: var(--seam); }
+
+  /* 上半區（標題＋各節表）當定位容器，吉祥物貼齊它的下緣，手掌壓在接縫上。
+     display:flow-root 是為了把 .qtable 的下邊界收進容器內——否則邊界會外溢，
+     容器底緣比實際看到的位置高 6px，吉祥物就會浮在接縫上方一小段。 */
+  .qzone { position: relative; display: flow-root; }
+  /* Boss 指定：手部要跨進下一個區塊，不可裁掉。
+     bottom 給大的負值讓爪子越過接縫壓進球員區；z-index 4 確保蓋在球員區底色與斑馬列之上。 */
+  /* 爪子底緣（紅線）對齊接縫帶底緣（藍線）：接縫高 5px，所以 bottom 給 -5px。
+     z-index 4 保證跨過接縫的那段畫在球員區底色之上，不會被蓋掉／看起來被截斷。 */
+  /* Boss 2026-09-06：兩隻牛都不可跨進球員區、也不可被截掉——整張圖完整呈現在上半區內，
+     底緣切齊接縫上緣（bottom:0 就是 .qzone 的下緣＝接縫上緣）。 */
+  .mascot {
+    position: absolute; left: 6px; bottom: 0;
+    width: 132px; height: auto; z-index: 4; pointer-events: none;
+    display: block;
+  }
+  .noMascot .mascot { display: none; }
+
+  /* 三種吉祥物：贏＝舉手歡呼、輸＝趴著哭、平手＝攤手無奈 */
+  .mascot { display: none; }
+  .win  .mascot.win  { display: block; }
+  .lose .mascot.lose { display: block; }
+  .tie  .mascot.tie  { display: block; }
+  /* 平手：與贏球同一個錨點，尺寸取兩者之間 */
+  .tie .mascot.tie { left: 6px; bottom: 0; width: 150px; }
+  /* 贏球擺法 A：與輸球同一個錨點（左側，底緣貼接縫）。
+     Boss 指定：圖直接蓋過後面的東西，被擋到的內容不必閃位置，所以放大到 165px。 */
+  .posA .mascot.win { left: 6px; bottom: 0; width: 165px; }
+  /* 贏球擺法 B：右側對稱位置 */
+  .posB .mascot.win { left: auto; right: 6px; bottom: 0; width: 132px; }
+  /* 贏球擺法 C：左側同錨點但縮小，舉起的手臂不會頂到各節表 */
+  .posC .mascot.win { left: 10px; bottom: 0; width: 104px; }
+
+  /* 球員區 */
+  .pzone { background: var(--zone-p); padding: 4px 0 6px; }
+  /* table-layout: fixed 才會真的照 width 排——預設的 auto 會依內容撐寬，
+     得分欄有兩位數（13/10）就會比其他欄寬，看起來欄距不一致 */
+  .ptable { border-collapse: collapse; margin: 0 auto; table-layout: fixed; width: 504px; }
+  .ptable th, .ptable td { text-align: center; font-size: 13px; padding: 1px 0; color: var(--ink); }
+  .ptable thead th { font-size: 11px; color: var(--gold); font-weight: 700; padding: 3px 0 4px; }
+  /* 姓名欄收窄並貼近數據（Boss：姓名欄左右太寬、離數據太遠）；六個數據欄一律等寬 */
+  /* 姓名欄：欄名與姓名都置中（Boss 2026-09-06） */
+  .ptable .nm { text-align: center; width: 96px; padding-left: 0; }
+  .ptable .col { width: 68px; }
+  /* 得分改正藍（Boss 2026-09-06）；0 分維持淡色不上藍，規則同失誤 */
+  .ptable .pts { color: #1E7BFF; font-weight: 900; }
+  .ptable .zero { color: var(--dim); }
+
+  /* 方案1：低對比斑馬列 */
+  .p1 .ptable thead th { background: var(--head-band); }
+  .p1 .ptable tbody tr:nth-child(even) td { background: var(--row-alt); }
+
+  /* 方案3：欄名反白金帶 */
+  .p3 .ptable thead th { background: var(--gold-band); color: var(--zone-p); }
+  .p3 .ptable tbody tr:nth-child(even) td { background: var(--row-alt); }
+  /* 節數標題顏色比較（只換這一排的顏色，其餘完全相同） */
+  .qhGrey   .qtable thead th { color: #C3CBC7; }
+  .qhBlack  .qtable thead th { color: #000; }
+  .qhDeep   .qtable thead th { color: #0A1F1A; }
+  .qhBrown  .qtable thead th { color: #4A3A18; }
+  .qhGold   .qtable thead th { color: var(--gold); }
+  .qhWhite  .qtable thead th { color: var(--ink); }
+  .qhBand   .qtable thead th {
+    color: var(--zone-p); background: var(--gold-band);
+    border-bottom: none; padding: 3px 19px;
+  }
+  .qhBandDk .qtable thead th {
+    color: var(--gold); background: #071310;
+    border-bottom: none; padding: 3px 19px;
+  }
+
+  /* 失誤數據改正紅：只有真的有失誤才紅，0 維持原本的淡色（0 不是壞事，不該標紅）。
+     欄名「失誤」不變色，維持金帶黑字，跟其他六個欄名一致。 */
+  .tovRed .ptable tbody td.tov:not(.zero) { color: #FF2D20; font-weight: 900; }
+
+  /* ---------------- 三種色系（金色系全部共用，這是「協調」的關鍵）---------------- */
+  .navy {
+    --zone-q: #1E3D65; --zone-p: #0D1E35; --seam: #081323;
+    --row-alt: #1B2F47; --head-band: #223954;
+    --gold: #F3CF7F; --gold-dark: #E0A83F; --gold-num: #F7DFA0;
+    --gold-band: #D3B16C; --gold-divider: rgba(255,255,255,0.60);
+    --frame-gold: rgba(255,214,140,0.30);
+    --ink: #F6EFE0; --dim: rgba(246,239,224,0.30);
+  }
+  .indigo {
+    --zone-q: #2B2F63; --zone-p: #14173A; --seam: #0A0C24;
+    --row-alt: #242A57; --head-band: #2F3568;
+    --gold: #F0CE8C; --gold-dark: #DDA857; --gold-num: #F6DFA8;
+    --gold-band: #CFAF74; --gold-divider: rgba(255,255,255,0.60);
+    --frame-gold: rgba(250,214,150,0.30);
+    --ink: #F2EDE4; --dim: rgba(242,237,228,0.30);
+  }
+  .forest {
+    --zone-q: #1C4239; --zone-p: #0C211D; --seam: #061310;
+    --row-alt: #183630; --head-band: #204C42;
+    --gold: #EFCE87; --gold-dark: #D9A64F; --gold-num: #F6DFA4;
+    --gold-band: #CDAE6E; --gold-divider: rgba(255,255,255,0.60);
+    --frame-gold: rgba(250,214,150,0.28);
+    --ink: #F1EEE2; --dim: rgba(241,238,226,0.30);
+  }
+</style>
+</head>
+<body>
+
+<h1>收播賽果圖 — 定稿版</h1>
+<p class="note">
+  黑框＝實際輸出 <b>1920×1080</b>，此處 1/2.4 預覽。<br>
+  <b>已定案</b>：墨綠底＋上下分區（接縫深色帶）／賽事名稱第一列嵌金線缺口並置中／
+  各節表淺灰欄名＋白色分隔線＋兩條直立線／球員表金帶黑字欄名＋斑馬列／
+  七欄與四節欄全部鎖死等寬／得分正藍、失誤正紅（0 都不標色）／0 值透明度 30%／
+  隊徽浮水印 14%／信義牛趴在接縫上。<br>
+  全部只用 Android Canvas 畫得出來的東西（純色矩形、線、文字、線性漸層、貼圖），沒有模糊或陰影。
+</p>
+
+<div id="out"></div>
+
+<script>
+const HEAD = ['得分', '籃板', '助攻', '火鍋', '抄截', '失誤'];
+const PLAYERS = [
+  ['李尚恩', 13, 3, 2, 0, 0, 0],
+  ['何祈叡', 10, 7, 2, 0, 2, 0],
+  ['林鼎烽', 10, 8, 1, 1, 0, 1],
+  ['黃照庭',  7, 0, 3, 0, 1, 2],
+  ['王秉謙',  6, 2, 1, 0, 0, 2],
+  ['陳德翌',  5, 0, 5, 0, 3, 4],
+  ['鄭力雍',  5, 5, 0, 0, 2, 0],
+  ['葉家宏',  3, 4, 0, 2, 0, 3],
+  ['洪浩鈞',  0, 0, 0, 0, 0, 0],
+  ['黃培倫',  0, 0, 0, 0, 0, 0],
+  ['廖宸逸',  0, 2, 0, 0, 1, 3],
+  ['葉詠宸',  0, 2, 1, 0, 0, 1],
+];
+const QUARTERS = [
+  ['信義國中', [24, 10, 13, 12], 59],
+  ['中正國中', [2, 6, 8, 5], 21],
+];
+
+function frameHtml() {
+  const qHead = ['<th></th>', ...['第1節','第2節','第3節','第4節'].map(h => `<th>${h}</th>`), '<th>總計</th>'].join('');
+  const qBody = QUARTERS.map(([name, qs, total]) =>
+    `<tr><td class="tname">${name}</td>${qs.map(v => `<td>${v}</td>`).join('')}<td class="totcol">${total}</td></tr>`
+  ).join('');
+  const pHead = `<th class="nm">球員</th>${HEAD.map((h, i) => `<th class="col${i === 5 ? ' tov' : ''}">${h}</th>`).join('')}`;
+  const pBody = PLAYERS.map(([name, ...vals]) => {
+    const cells = vals.map((v, i) => {
+      const cls = [
+        i === 0 ? 'pts' : '',
+        i === 5 ? 'tov' : '',
+        v === 0 ? 'zero' : ''
+      ].filter(Boolean).join(' ');
+      return `<td class="${cls}">${v}</td>`;
+    }).join('');
+    return `<tr><td class="nm">${name}</td>${cells}</tr>`;
+  }).join('');
+
+  return `<div class="frame"><div class="panel">
+    <img class="wm" src="各隊隊徽/信義國中_去背.png" alt="">
+    <div class="qzone">
+      <div class="evbar"><span class="rule l"></span><span class="evname">2026 中正盃</span><span class="rule r"></span></div>
+      <table class="qtable"><thead><tr>${qHead}</tr></thead><tbody>${qBody}</tbody></table>
+      <img class="mascot win" src="各隊隊徽/信義牛_贏_alpha.png" alt="">
+      <img class="mascot lose" src="各隊隊徽/信義牛_輸_alpha.png" alt="">
+      <img class="mascot tie" src="各隊隊徽/信義牛_平_alpha.png" alt="">
+    </div>
+    <div class="seam"></div>
+    <div class="pzone"><table class="ptable"><thead><tr>${pHead}</tr></thead><tbody>${pBody}</tbody></table></div>
+  </div></div>`;
+}
+
+const PLANS = [
+  { id: 'p1', label: '方案1　低對比斑馬列' },
+  { id: 'p3', label: '方案3　欄名反白金帶' },
+];
+const TONES = [
+  { id: 'navy',   label: '藏青（現行品牌色）', note: '跟燒入計分板、休息畫面完全一致，最安全。' },
+  { id: 'indigo', label: '靛藍', note: '底色往紫偏一點，比藏青現代、對比更強；金色顯得更亮。' },
+  { id: 'forest', label: '墨綠', note: '綠配金是運動場館最經典的組合，跟藍色系的其他隊伍影片區隔度最高。' },
+];
+
+// 節數標題（第1節～總計）顏色比較，其餘設定完全相同
+// 隊徽當底圖浮水印的三種強度（Boss 2026-09-06）
+const WM = [
+  { id: 'wm14 noLogo', label: '★ 定稿：浮水印 14% ＋ 左上區塊下緣放吉祥物', note: '隊徽當底圖浮水印 14%，信義牛探頭趴在上半區下緣，爪子抓在接縫線上。' },
+  { id: 'wm22 noLogo noMascot', label: '對照：只有浮水印 22%，沒有吉祥物', note: '' },
+  { id: 'wm08 noLogo noMascot', label: '對照：浮水印 8%', note: '' },
+];
+
+const QHEAD = [
+  { id: 'qhGrey',  label: '★ 淺灰 #C3CBC7', note: '比暖白低一階、比金色中性，不跟賽事名稱和欄名金帶搶。' },
+  { id: 'qhBlack', label: '① 純黑 #000（現行）', note: '在墨綠底上幾乎看不見，只剩輪廓。' },
+  { id: 'qhDeep',  label: '② 深墨綠 #0A1F1A', note: '比純黑亮一階，仍是暗色，勉強讀得到。' },
+  { id: 'qhBrown', label: '③ 深金褐 #4A3A18', note: '暗色但帶金調，跟整張圖的金色系同一家族。' },
+  { id: 'qhGold',  label: '④ 金色 #EFCE87（原本的）', note: '與賽事名稱、球員欄名金帶同一個金，最協調。' },
+  { id: 'qhWhite', label: '⑤ 暖白 #F1EEE2', note: '對比最高最好讀，但跟底下的數字同色，層級變平。' },
+  { id: 'qhBand',  label: '⑥ 金帶黑字', note: '加一條金底＝跟球員欄名同一個做法，上下兩表頭統一。' },
+  { id: 'qhBandDk', label: '⑦ 深色帶金字', note: '反過來：深底金字，比金帶低調，仍明確切開表頭。' },
+];
+
+document.getElementById('out').innerHTML =
+  '<h2 style="font-size:16px;color:#F3CF7F;margin:0 0 10px">主隊贏球（擺法 A）</h2>' +
+  `<div class="sample p3 forest tovRed qhGrey wm14 win posA">${frameHtml()}</div>` +
+  '<h2 style="font-size:16px;color:#F3CF7F;margin:22px 0 10px">主隊輸球</h2>' +
+  `<div class="sample p3 forest tovRed qhGrey wm14 lose">${frameHtml()}</div>` +
+  '<h2 style="font-size:16px;color:#F3CF7F;margin:22px 0 10px">平手（新增：攤手無奈）</h2>' +
+  `<div class="sample p3 forest tovRed qhGrey wm14 tie">${frameHtml()}</div>`;
+</script>
+
+</body>
+</html>

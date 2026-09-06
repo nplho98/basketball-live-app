@@ -23,11 +23,12 @@ class PlayerRosterTest {
     }
 
     @Test
-    fun `caps roster at twelve names`() {
+    fun `caps roster at the max size`() {
         val raw = (1..20).joinToString("\n") { "球員$it" }
         val parsed = StreamPrefs.parseRoster(raw)
         assertEquals(StreamPrefs.ROSTER_MAX_SIZE, parsed.size)
-        assertEquals("球員12", parsed.last())
+        // 上限由常數決定（v0.22.0：12 → 15），別再寫死數字，改上限時測試才會自動跟著
+        assertEquals("球員${StreamPrefs.ROSTER_MAX_SIZE}", parsed.last())
     }
 
     @Test

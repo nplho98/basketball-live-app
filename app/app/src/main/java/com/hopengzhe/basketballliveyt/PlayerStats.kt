@@ -96,6 +96,13 @@ data class PlayerStatRow(
         PlayerStatType.STEAL -> steal
         PlayerStatType.TURNOVER -> turnover
     }
+
+    /**
+     * 這一場有沒有任何記錄。**只有失誤也算有**（Boss 2026-09-06 拍板）——
+     * 這一層要分的是「有沒有上場」，表現好壞已經由得分那一層排過了。
+     */
+    fun hasAnyRecord(): Boolean =
+        points > 0 || PlayerStatType.entries.any { statOf(it) > 0 }
 }
 
 /**
@@ -117,9 +124,15 @@ fun padName(name: String, width: Int): String =
     name + "\u3000".repeat((width - name.length).coerceAtLeast(0))
 
 /**
- * 球員數據表：**名單 12 人全部列出（整場掛零也列，Boss 指定）**，
- * 名單外但有數據的人（切年級後的前一批）接在後面，得分的「未指定」固定最後一列。
- * 排序：名單內依得分高到低，同分維持名單順序。
+ * 球員數據表：**目前名單全部列出（整場掛零也列，Boss 指定）**，得分的「未指定」固定最後一列。
+ * 排序三層（Boss 2026-09-06）：
+ * 1. 得分高到低
+ * 2. 得分相同時，**有任何記錄的排前面、六項全零的沉到最底**（只有失誤也算有記錄）
+ * 3. 同一組維持名單順序（`sortedWith` 是穩定排序）
+ *
+ * v0.22.0：**移除「名單外」段**（Boss 2026-09-06 指定，球員數據視窗／分享 LINE／輸出圖片三處一致）。
+ * 代價是直播中切年級後，前一批球員的數據不再顯示（存檔仍留著）；
+ * Boss 確認直播中不切年級，故不做防護。
  */
 fun buildPlayerStatRows(
     roster: List<String>,
@@ -138,16 +151,23 @@ fun buildPlayerStatRows(
     )
 
     val inRoster = roster.map { rowOf(it) }
-        .sortedWith(compareByDescending<PlayerStatRow> { it.points })
-    val outsiders = (pointsOf.keys.filter { it.isNotEmpty() } + book.namesWithData())
-        .distinct()
-        .filter { it !in roster }
-        .map { rowOf(it) }
-        .sortedWith(compareByDescending<PlayerStatRow> { it.points })
+        .sortedWith(
+            compareByDescending<PlayerStatRow> { it.points }
+                .thenByDescending { it.hasAnyRecord() }
+        )
     val unassigned = pointsOf[""]?.takeIf { it > 0 }
         ?.let { listOf(PlayerStatRow("", it, 0, 0, 0, 0, 0, isUnassigned = true)) }
         ?: emptyList()
-    return inRoster + outsiders + unassigned
+    return inRoster + unassigned
+}
+
+/**
+ * v0.22.0：賽果圖的雙欄分流——前半列進左欄、後半列進右欄，奇數時左欄多一列。
+ * 抽成純函式是為了單元測試（畫圖那段有 Canvas 相依測不到）。
+ */
+fun splitStatRowsIntoColumns(rows: List<PlayerStatRow>): Pair<List<PlayerStatRow>, List<PlayerStatRow>> {
+    val leftCount = (rows.size + 1) / 2
+    return rows.take(leftCount) to rows.drop(leftCount)
 }
 
 /**

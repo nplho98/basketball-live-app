@@ -373,6 +373,24 @@
     <string name="player_stats_event_edit_hint">第一行：賽事；第二行：隊伍／年級</string>
     <string name="player_stats_event_saved_toast">賽事名稱已更新</string>
     <string name="player_stats_close_button">關閉</string>
+
+    <!-- v0.22.0：收播賽果圖 -->
+    <string name="game_summary_export_button">輸出圖片</string>
+    <string name="game_summary_total_header">總計</string>
+    <string name="game_summary_partial_note">比賽進行到%1$s</string>
+    <string name="game_summary_saved_toast">賽果圖已存到相簿：%1$s</string>
+    <string name="game_summary_failed_toast">賽果圖存檔失敗：%1$s</string>
+
+    <!-- v0.22.0：球員數據視窗的清空與分享 -->
+    <string name="player_stats_clear_button">清空數據</string>
+    <string name="player_stats_clear_confirm_title">清空本場數據？</string>
+    <string name="player_stats_clear_confirm_message">本場全部重來：分數、犯規、節數、各節結算、球員五項數據、得分與精彩標記的時間點，全部歸零。</string>
+    <string name="player_stats_clear_live_blocked">直播中不能清空，收播後再按</string>
+    <string name="start_live_reset_scoreboard_notice">開播會自動重置計分板：分數、犯規、節數、各節結算全部歸零。</string>
+    <string name="player_stats_clear_confirm_ok">清空</string>
+    <string name="player_stats_clear_done_toast">本場球員數據已清空</string>
+    <string name="player_stats_share_line_button">傳到LINE</string>
+    <string name="player_stats_share_line_live_blocked">直播中不能切到 LINE，收播後再傳</string>
     <string name="player_stats_hint">五項數據：短按 +1、長按 −1；得分不可改</string>
     <string name="player_stats_line">%1$s %2$s分 / 籃板%3$s / 助攻%4$s / 火鍋%5$s / 抄截%6$s / 失誤%7$s</string>
 

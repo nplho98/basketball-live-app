@@ -668,17 +668,9 @@
                 android:textColor="@color/white"
                 android:textSize="8sp" />
 
-            <Button
-                android:id="@+id/btnResetScores"
-                android:layout_width="80dp"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:paddingVertical="6dp"
-                android:background="@drawable/bg_round_button_dark"
-                android:backgroundTint="@null"
-                android:text="@string/reset_scores_button"
-                android:textColor="@color/white"
-                android:textSize="8sp" />
+            <!-- v0.22.0：原本這裡有「分數清零」鈕，已移除（Boss 2026-09-06）。
+                 開播改成一律重置計分板，賽前不需要它；直播中按下去會讓畫面上的分數憑空歸零，
+                 只剩誤按風險。要手動重來改用球員數據視窗的「清空數據」。 -->
 
             <!-- v0.4.5：關閉軟體（直播中鎖定，做法與右側欄設定按鈕一致，見 LiveActivity.setLiveUiState） -->
             <Button

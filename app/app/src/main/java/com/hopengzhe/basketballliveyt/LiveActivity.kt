@@ -644,7 +644,26 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private var bitrateEwmaBps = 0.0
     private var bitrateValidSampleCount = 0
     private var bitrateShowRecoveringGrace = false
+    // v0.22.0：賽果圖素材——隊徽浮水印與勝負吉祥物。延遲載入，缺圖回傳 null 就不畫，版面照常。
+    private val summaryWatermarkBitmap: Bitmap? by lazy {
+        BitmapFactory.decodeResource(resources, R.drawable.summary_watermark)
+    }
+    private val summaryMascotWinBitmap: Bitmap? by lazy {
+        BitmapFactory.decodeResource(resources, R.drawable.summary_mascot_win)
+    }
+    private val summaryMascotLoseBitmap: Bitmap? by lazy {
+        BitmapFactory.decodeResource(resources, R.drawable.summary_mascot_lose)
+    }
+    private val summaryMascotTieBitmap: Bitmap? by lazy {
+        BitmapFactory.decodeResource(resources, R.drawable.summary_mascot_tie)
+    }
+
     private var isConnectionEstablished = false
+
+    // v0.22.0：本場「真的推流連上過」——收播時決定要不要出賽果圖。
+    // 不能用 isConnectionEstablished：它在 onDisconnect 就被清掉，重連放棄時會誤判成沒推流過。
+    // 推流驗證失敗（onAuthError）也會呼叫 stopLiveStream，那條路要避免吐出一張 0:0 的空圖。
+    private var hadEstablishedConnection = false
     // v0.17.1（第一階段審查第4項）：警告狀態連續樣本遲滯——已提交顯示的狀態與待切換狀態＋連續筆數，
     // 需連續 BITRATE_WARNING_STABLE_SAMPLES 筆一致才換色，避免 EWMA 在門檻附近反覆閃色。
     private var bitrateWarningState = ""
@@ -820,7 +839,6 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         setupTopOperationButtons()
         setupLiveToggle()
         setupShareButton()
-        setupResetScoresButton()
         setupExposureControls()
         setupFocusLock()
         setupFocusGestures()
@@ -1218,23 +1236,20 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
     /**
      * 避免手滑誤觸就真的開播，按下開播先跳確認框，選「是」才真正呼叫 [startLiveStream]。
-     * v0.9.3：確認框加「重置計分板」勾選項（預設打勾）——賽前開播直接按開播即自動歸零
-     * 分數/犯規/節數；比賽中途斷線重開直播時取消勾選，比分完整保留不會被誤清。
-     * 用 setMultiChoiceItems 放單一勾選項（AlertDialog 原生支援，不需自訂版面），
-     * 與 setMessage 互斥，確認訊息併入標題。
+     * v0.9.3：確認框加「重置計分板」勾選項（預設打勾）。
+     * v0.22.0：**勾選項移除，改成一律重置**（Boss 2026-09-06）。
+     * 代價是「斷線後重開直播保留比分」這條路沒了——但留著勾選項的副作用更大：
+     * 沒勾就開播時，上一場比分會直接燒進直播畫面，那時只能靠左側清零鈕救，
+     * 而那顆鈕在直播中按下去又會讓畫面上的分數憑空歸零。拿掉勾選項才能把兩邊一起收乾淨。
      * v0.10.0：錄影開啟時標題追加一行空間預估（見 [buildStartLiveConfirmTitle]），
      * 只提醒不阻擋開播（計畫書已知風險段：空間耗盡由 [RecordController.Listener.onError] 路徑接手）。
      */
     private fun showStartLiveConfirmDialog() {
-        val resetChecked = booleanArrayOf(true)
         AlertDialog.Builder(this)
             .setTitle(buildStartLiveConfirmTitle())
-            .setMultiChoiceItems(
-                arrayOf(getString(R.string.start_live_reset_scoreboard_checkbox)),
-                resetChecked
-            ) { _, _, isChecked -> resetChecked[0] = isChecked }
+            .setMessage(getString(R.string.start_live_reset_scoreboard_notice))
             .setPositiveButton(getString(R.string.start_live_confirm_ok)) { _, _ ->
-                if (resetChecked[0]) resetScoreboardForNewGame()
+                resetScoreboardForNewGame()
                 startLiveStream()
             }
             .setNegativeButton(getString(R.string.dialog_cancel_button), null)
@@ -1532,6 +1547,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
         // v0.13.0：功能 A——本場精彩標記重新起算（新場次時間戳，收播不清除舊檔，見 HighlightMarker.kt）
         highlightMarkers.clear()
+        // v0.22.0：新場次先當作沒推流過，連上（onConnectionSuccess）才會轉 true
+        hadEstablishedConnection = false
         // v0.20.0：四項數據跟著精彩標記一起重新起算，並收掉還開著的數據視窗（避免舊場數字留在畫面上）
         playerStatBook = PlayerStatBook()
         playerStatsDialog?.dismiss()
@@ -1604,6 +1621,15 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
         if (wasRecording) {
             Toast.makeText(this, recordSavedToastMessage(), Toast.LENGTH_LONG).show()
+        }
+        // v0.22.0：收播自動輸出賽果圖到相簿。只有「真的推流連上過」才出圖——
+        // 推流驗證失敗（onAuthError）也會走到這裡，那時出圖等於吐一張 0:0 的空圖進相簿。
+        // 必須在跳精彩清單之前做完：返回鍵那條路收播後緊接 finish()，對話框開著也擋不住銷毀。
+        // 旗標當場消費掉：收播路徑有四條，同一場若被呼叫兩次（例如手動收播後又收到 onAuthError
+        // 回呼）不該重複輸出兩張一樣的圖（Codex 詰問指出原本出圖後旗標仍為 true）。
+        if (hadEstablishedConnection) {
+            hadEstablishedConnection = false
+            exportGameSummaryImage()
         }
         // v0.13.0：功能 A——收播流程結束後跳「精彩清單」，讓操作者立即整理／複製章節格式
         if (highlightMarkers.isNotEmpty()) {
@@ -1970,6 +1996,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             // v0.17.0（第一階段第4/5項）：連線正式建立——碼率警告從此開始判定，暖機低碼率不再算異常；
             // epoch 重設（不掛「恢復中」寬限，那只給離開休息用）讓 EWMA 從真正推流值起算，不被暖機值汙染。
             isConnectionEstablished = true
+            hadEstablishedConnection = true
             resetBitrateWarningEpoch(armRecovering = false)
             DiagLogger.log(this, "CONN", "onConnectionSuccess（連線建立）")
             LiveForegroundService.start(this, getString(R.string.foreground_service_status_live))
@@ -2585,34 +2612,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     // v0.19.2：點計分板隊名改名的功能已移除（Boss 指定隊名一律在系統設定頁改），
     // 連同兩個透明點擊區與其參考線一起從 activity_live.xml 刪掉。
 
-    // ---------- 左側欄：分數清零（比賽中誤按代價高，先跳確認框） ----------
-
-    /**
-     * v0.6.0：清零範圍擴大——按下「是」後兩隊分數與犯規次數一起歸零，
-     * 燒入計分板的 4 格犯規燈號同步變回白／未點亮（見 [refreshScoreboardOverlay]）。
-     * v0.18.14：同步歸零節數（回第 1 節）與各節結算分數，跟 [resetScoreboardForNewGame] 範圍一致。
-     */
-    private fun setupResetScoresButton() {
-        binding.btnResetScores.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle(getString(R.string.reset_scores_confirm_title))
-                .setMessage(getString(R.string.reset_scores_confirm_message))
-                .setPositiveButton(getString(R.string.reset_scores_confirm_ok)) { _, _ ->
-                    scoreHome = 0
-                    scoreAway = 0
-                    foulHome = 0
-                    foulAway = 0
-                    period = 1
-                    quarterScoresHome = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
-                    quarterScoresAway = IntArray(StreamPrefs.PERIOD_SLOT_COUNT) { -1 }
-                    StreamPrefs.clearQuarterScores(this)
-                    refreshScoreboardOverlay()
-                    Toast.makeText(this, getString(R.string.reset_scores_done_toast), Toast.LENGTH_SHORT).show()
-                }
-                .setNegativeButton(getString(R.string.dialog_cancel_button), null)
-                .show()
-        }
-    }
+    // ---------- v0.22.0：左側欄「分數清零」已移除（Boss 2026-09-06）----------
+    //  開播一律重置計分板，賽前不需要這顆；直播中按下去會讓燒進畫面的分數憑空歸零。
+    //  要手動重來改用球員數據視窗的「清空數據」（同樣只在非直播中可按）。
 
     // ---------- 計分板燒入直播畫面：以 Bitmap 繪製後掛上 ImageObjectFilterRender ----------
 
@@ -3738,6 +3740,62 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
     )
 
+    /**
+     * v0.22.0：清空本場數據（Boss 2026-09-06）。
+     *
+     * 為什麼需要：`playerStatBook` 與精彩標記**只在開播那一刻歸零**，左側欄那顆「分數清零」
+     * 只管分數／犯規／節數／各節結算，不碰球員數據。賽前試按或上一場沒開播就關 APP 的情況下，
+     * 數字會一路留著。
+     *
+     * 六項一起清（含得分）——得分來自精彩標記，只清五項的話得分欄還會有數字，
+     * 對操作者來說等於沒清乾淨。代價是精彩片段的時間點也一併消失，確認框要講明。
+     */
+    private fun showClearPlayerStatsConfirmDialog(onCleared: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.player_stats_clear_confirm_title))
+            .setMessage(getString(R.string.player_stats_clear_confirm_message))
+            .setPositiveButton(getString(R.string.player_stats_clear_confirm_ok)) { _, _ ->
+                playerStatBook = PlayerStatBook()
+                highlightMarkers.clear()
+                persistPlayerStats()
+                persistHighlightMarkers()
+                // v0.22.0：連計分板一起歸零——只清球員數據的話，畫面上還留著上一場的比分，
+                // 會出現「12 個人都 0 分、計分板卻有 18 分」的矛盾（Boss 2026-09-06 實機發現）
+                resetScoreboardForNewGame()
+                Toast.makeText(
+                    this, getString(R.string.player_stats_clear_done_toast), Toast.LENGTH_SHORT
+                ).show()
+                onCleared()
+            }
+            .setNegativeButton(getString(R.string.dialog_cancel_button), null)
+            .show()
+    }
+
+    /**
+     * v0.22.0：把當下的球員數據用訊息傳到 LINE。
+     *
+     * 與收播後「精彩清單」那顆分享的差別：**這裡只帶球員數據，不帶標記章節**——
+     * 比賽還沒結束就分享時，章節時間點對收訊息的家長沒有意義。
+     */
+    private fun sharePlayerStatsToLine() {
+        val text = buildScorerSummaryText()
+        if (text.isBlank()) {
+            Toast.makeText(this, getString(R.string.player_stats_empty), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+            `package` = LINE_PACKAGE_NAME
+        }
+        try {
+            startActivity(intent)
+        } catch (e: android.content.ActivityNotFoundException) {
+            intent.`package` = null
+            startActivity(Intent.createChooser(intent, getString(R.string.player_stats_share_line_button)))
+        }
+    }
+
     private fun persistPlayerStats() {
         PlayerStatStore.save(this, highlightSessionTimestamp, playerStatBook)
     }
@@ -3828,14 +3886,45 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                 })
             })
 
+            // v0.22.0：第二排功能鈕。做進內容區而不是對話框按鈕列——AlertDialog 最多三顆按鈕，
+            // 加上「關閉」就滿了，四顆放不下。
+            container.addView(statsRow().apply {
+                addView(panelButton(getString(R.string.game_summary_export_button)) {
+                    exportGameSummaryImage()
+                })
+                // 直播中停用：清空會把燒進畫面的比分一起歸零，比賽進行中按下去等於毀掉這場
+                addView(panelButton(getString(R.string.player_stats_clear_button)) {
+                    if (isLive) {
+                        Toast.makeText(
+                            this@LiveActivity,
+                            getString(R.string.player_stats_clear_live_blocked),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        showClearPlayerStatsConfirmDialog { rebuild() }
+                    }
+                }.apply { alpha = if (isLive) LIVE_LOCKED_BUTTON_ALPHA else 1f })
+                // 直播中不可用：切到 LINE 會把 APP 推到背景，等於拿直播冒險（Boss 指定）
+                addView(panelButton(getString(R.string.player_stats_share_line_button)) {
+                    if (isLive) {
+                        Toast.makeText(
+                            this@LiveActivity,
+                            getString(R.string.player_stats_share_line_live_blocked),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        sharePlayerStatsToLine()
+                    }
+                }.apply { alpha = if (isLive) LIVE_LOCKED_BUTTON_ALPHA else 1f })
+            })
+
             container.addView(android.widget.TextView(this).apply {
                 text = getString(R.string.player_stats_hint)
                 setTextColor(getColor(R.color.text_secondary))
                 textSize = PLAYER_STATS_TEXT_SP - 1f
             })
 
-            // 判空要用合併後的列，不能只看名單——切到還沒建名單的年級時，
-            // 既有的四項數據仍要看得到才改得動（Codex 第二輪詰問）
+            // v0.22.0：名單外的人已不列出，這裡的判空等同「名單為空且沒有未指定得分」
             val statRows = buildPlayerStatRows(roster, summarizeScorers(highlightMarkers), playerStatBook)
             if (statRows.isEmpty()) {
                 container.addView(android.widget.TextView(this).apply {
@@ -3883,6 +3972,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
         rebuild()
 
+        // v0.22.0：輸出圖片／清空／分享 LINE 都改放在內容區的第二排功能鈕，這裡只留關閉
         val dialog = AlertDialog.Builder(this)
             .setView(scrollView)
             .setPositiveButton(getString(R.string.player_stats_close_button), null)
@@ -4066,8 +4156,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
 
     /**
      * v0.19.1：統計只出現在「分享LINE」（複製章節格式維持原樣）；v0.21.1 起排在章節文字**上方**。
-     * v0.20.0：改成球員數據表——名單 12 人全部列出（掛零也列），每列＝姓名、得分、籃板、助攻、阻攻、抄截；
-     * 名單外但有數據的人（切年級後的前一批）接在後面，得分的「未指定」固定最後一列。
+     * v0.20.0：改成球員數據表——名單全部列出（掛零也列），每列＝姓名、得分、籃板、助攻、火鍋、抄截、失誤。
+     * v0.22.0：名單上限 12→15；**名單外的人不再列出**（Boss 指定，三個輸出一致），
+     * 得分的「未指定」仍固定最後一列。
      */
     private fun buildScorerSummaryText(): String {
         val rows = buildPlayerStatRows(roster, summarizeScorers(highlightMarkers), playerStatBook)
@@ -4629,6 +4720,466 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
     }
 
+    // ==================== v0.22.0：收播賽果圖 ====================
+    //
+    // 一張 1920×1080 PNG 存進手機相簿，內容＝頂端賽果表（賽事名稱兩列｜隊名｜各節｜總計）
+    // ＋下方球員數據雙欄表。版面依 HTML 樣品定稿：
+    // `project/14 Baskeball YT/樣品_收播輸出圖片_球員數據版面_2026-09-06.html`（樣式02）。
+    //
+    // 尺寸固定 1920×1080，**不跟串流解析度走**——這是獨立產物，不是燒進影像的圖層，
+    // 未開播時手動重出也要拿得到有效尺寸。
+
+    /**
+     * 各節分數：已結算的節直接取，「目前這一節」用「總分 − 已結算各節加總」即時補上
+     * （做法同 [drawBreakQuarterTable]，避免第 N 節收播時該欄是空的）。未打到的節維持 -1。
+     */
+    private fun quarterRowForSummary(scores: IntArray, total: Int, columnCount: Int): IntArray {
+        val row = scores.copyOf()
+        val liveIndex = period - 1
+        if (liveIndex in 0 until columnCount && row.getOrElse(liveIndex) { 0 } < 0) {
+            row[liveIndex] = (total - row.filter { it >= 0 }.sum()).coerceAtLeast(0)
+        }
+        return row
+    }
+
+    /**
+     * 賽果圖版面（定稿：`樣品_收播輸出圖片_配色方案_2026-09-06.html`）。
+     *
+     * 所有尺寸都以樣品的 752px 面板為基準，乘上 [k] 放大到 1920×1080——樣品改了什麼，
+     * 這裡照抄同一個數字就好，不必兩邊各算一套。
+     */
+    private fun drawGameSummary(bitmap: Bitmap) {
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.BLACK)
+
+        val panel = RectF(
+            GAME_SUMMARY_MARGIN_X, GAME_SUMMARY_MARGIN_Y,
+            GAME_SUMMARY_WIDTH - GAME_SUMMARY_MARGIN_X, GAME_SUMMARY_HEIGHT - GAME_SUMMARY_MARGIN_Y
+        )
+        val k = panel.width() / SAMPLE_PANEL_WIDTH
+        val corner = 14f * k
+
+        // 上半區底色鋪滿整個面板，下半區稍後再蓋上去
+        canvas.drawRoundRect(panel, corner, corner, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ZONE_QUARTER })
+
+        // 版面高度分配：上半區（標題＋各節表）／接縫／球員區
+        val qzoneHeight = panel.height() * GAME_SUMMARY_HEADER_RATIO
+        val seamTop = panel.top + qzoneHeight
+        val seamHeight = 5f * k
+        val playerTop = seamTop + seamHeight
+
+        // 球員區底色（圓角只在下緣，用一個圓角矩形再補一塊方形蓋掉上面的圓角）
+        val playerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ZONE_PLAYER }
+        canvas.drawRoundRect(RectF(panel.left, playerTop, panel.right, panel.bottom), corner, corner, playerPaint)
+        canvas.drawRect(RectF(panel.left, playerTop, panel.right, playerTop + corner), playerPaint)
+        // 接縫深色帶
+        canvas.drawRect(
+            RectF(panel.left, seamTop, panel.right, playerTop),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = SEAM_COLOR }
+        )
+
+        // 隊徽浮水印：畫在兩區底色之上、文字之下（Boss 指定 14%）
+        drawSummaryWatermark(canvas, panel)
+
+        // 金框
+        canvas.drawRoundRect(panel, corner, corner, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2f * k
+            color = FRAME_GOLD
+        })
+
+        drawSummaryTitle(canvas, panel, k, qzoneHeight)
+        drawSummaryQuarterTable(canvas, panel, k, seamTop, qzoneHeight)
+        drawSummaryPlayerTable(canvas, panel, k, playerTop)
+        // 吉祥物最後畫，直接蓋過後面的東西（Boss：被遮到的內容不必閃位置）；
+        // 底緣切齊接縫上緣，整張圖完整呈現、不跨進球員區
+        drawSummaryMascot(canvas, panel, k, seamTop)
+
+        if (BuildConfig.DEBUG) dumpOverlayPng(bitmap, "game_summary.png")
+    }
+
+    /** 隊徽浮水印：置中放大、14% 不透明度。找不到圖就不畫，版面照常。 */
+    private fun drawSummaryWatermark(canvas: Canvas, panel: RectF) {
+        val wm = summaryWatermarkBitmap ?: return
+        val size = panel.height() * 0.75f
+        val dst = RectF(
+            panel.centerX() - size / 2f, panel.centerY() - size / 2f,
+            panel.centerX() + size / 2f, panel.centerY() + size / 2f
+        )
+        canvas.drawBitmap(wm, null, dst, Paint(Paint.FILTER_BITMAP_FLAG).apply { alpha = 36 }) // 36/255 ≈ 14%
+    }
+
+    /**
+     * 三種結果三張圖（Boss 2026-09-06）：主隊贏＝舉手歡呼、平手＝攤手無奈、輸＝趴著哭。
+     * 寬度也各不同——平手那張兩手往兩側攤開，本來就比較寬，取贏與輸的中間值才不會過度佔版面。
+     * 底緣切齊接縫上緣：整張圖完整呈現，不跨進球員區也不被截掉。
+     */
+    private fun drawSummaryMascot(canvas: Canvas, panel: RectF, k: Float, seamTop: Float) {
+        val diff = scoreHome - scoreAway
+        val mascot = when {
+            diff > 0 -> summaryMascotWinBitmap
+            diff < 0 -> summaryMascotLoseBitmap
+            else -> summaryMascotTieBitmap
+        } ?: return
+        val widthDp = when {
+            diff > 0 -> 165f
+            diff < 0 -> 132f
+            else -> 150f
+        }
+        val w = widthDp * k
+        val h = w * mascot.height / mascot.width
+        val left = panel.left + 6f * k
+        val bottom = seamTop
+        canvas.drawBitmap(
+            mascot, null,
+            RectF(left, bottom - h, left + w, bottom),
+            Paint(Paint.FILTER_BITMAP_FLAG)
+        )
+    }
+
+    /** 標題：頂緣金飾線從中間斷開，賽事名稱第一列嵌進缺口（重用休息畫面那支）。 */
+    private fun drawSummaryTitle(canvas: Canvas, panel: RectF, k: Float, qzoneHeight: Float) {
+        // 以上半區高度的比例定位，換算倍率或區塊高度改變時整組會一起跟著移動
+        val accentY = panel.top + qzoneHeight * TITLE_ACCENT_RATIO
+        val accentLeft = panel.left + 20f * k
+        val accentRight = panel.right - 20f * k
+        val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                accentLeft, 0f, accentRight, 0f,
+                intArrayOf(
+                    Color.TRANSPARENT, GOLD_LIGHT, GOLD_DARK, GOLD_LIGHT, Color.TRANSPARENT
+                ),
+                floatArrayOf(0f, 0.25f, 0.5f, 0.75f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            strokeWidth = 3f * k
+        }
+        val title = breakEventTitle()
+        if (title.isEmpty()) {
+            canvas.drawLine(accentLeft, accentY, accentRight, accentY, accentPaint)
+        } else {
+            drawBreakEventTitle(
+                canvas, title, panel.left, panel.width(), panel.height() * 0.62f,
+                accentLeft, accentRight, accentY, accentPaint
+            )
+        }
+    }
+
+    private fun baselineFor(paint: Paint, centerY: Float) =
+        centerY - (paint.descent() + paint.ascent()) / 2f
+
+    /**
+     * 各節表：`隊名｜第1節…｜總計`，欄寬全部鎖死（不隨數字位數變動）。
+     * 欄名淺灰、分隔線白色，隊名右側與總計左側各一條直立線。
+     * 節數欄數由 [breakTableColumnCount] 決定——打到哪畫到哪，正規四節到 OT3。
+     */
+    private fun drawSummaryQuarterTable(
+        canvas: Canvas, panel: RectF, k: Float, seamTop: Float, qzoneHeight: Float
+    ) {
+        val columnCount = breakTableColumnCount()
+        val nameW = 130f * k
+        val totalW = 102f * k
+        val quarterW = 68f * k
+        val tableW = nameW + quarterW * columnCount + totalW
+        val left = panel.centerX() - tableW / 2f
+        val numericLeft = left + nameW
+        val totalLeft = numericLeft + quarterW * columnCount
+        fun quarterCenterX(i: Int) = numericLeft + quarterW * (i + 0.5f)
+
+        // 三列的位置全部相對上半區高度——原本寫死 dp 偏移，面板高度一變就整組往下掉、
+        // 直立線還會穿出上半區跑進球員區（Boss 2026-09-06 實機比對抓到）
+        val headerCenterY = panel.top + qzoneHeight * QUARTER_HEADER_RATIO
+        val homeCenterY = panel.top + qzoneHeight * QUARTER_HOME_RATIO
+        val awayCenterY = panel.top + qzoneHeight * QUARTER_AWAY_RATIO
+
+        val headerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = QUARTER_HEAD_GREY
+            typeface = Typeface.DEFAULT_BOLD
+            textAlign = Paint.Align.CENTER
+            textSize = 12f * k
+        }
+        for (i in 0 until columnCount) {
+            canvas.drawText(breakColumnHeader(i), quarterCenterX(i), baselineFor(headerPaint, headerCenterY), headerPaint)
+        }
+        canvas.drawText(
+            getString(R.string.game_summary_total_header),
+            totalLeft + totalW / 2f, baselineFor(headerPaint, headerCenterY), headerPaint
+        )
+
+        // 白色分隔線：欄名下一條橫線＋兩條直立線
+        val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = DIVIDER_WHITE
+            strokeWidth = 2f * k
+        }
+        val headerBottomY = panel.top + qzoneHeight * QUARTER_HEADER_LINE_RATIO
+        canvas.drawLine(left, headerBottomY, left + tableW, headerBottomY, dividerPaint)
+        // 直立線上下都夾在上半區內，絕不越過接縫
+        val vTop = panel.top + qzoneHeight * QUARTER_VLINE_TOP_RATIO
+        val vBottom = panel.top + qzoneHeight * QUARTER_VLINE_BOTTOM_RATIO
+        canvas.drawLine(numericLeft, vTop, numericLeft, vBottom, dividerPaint)
+        canvas.drawLine(totalLeft, vTop, totalLeft, vBottom, dividerPaint)
+
+        val teamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = INK
+            typeface = Typeface.DEFAULT_BOLD
+            textAlign = Paint.Align.CENTER
+            textSize = 15f * k
+        }
+        val numberPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = INK
+            typeface = Typeface.DEFAULT_BOLD
+            textAlign = Paint.Align.CENTER
+            textSize = 17f * k
+        }
+        val dimPaint = Paint(numberPaint).apply { color = DIM_INK }
+        val totalPaint = Paint(numberPaint).apply { color = GOLD_NUM }
+
+        listOf(
+            Triple(teamHomeName, quarterRowForSummary(quarterScoresHome, scoreHome, columnCount), scoreHome) to homeCenterY,
+            Triple(teamAwayName, quarterRowForSummary(quarterScoresAway, scoreAway, columnCount), scoreAway) to awayCenterY
+        ).forEach { (row, centerY) ->
+            val (name, scores, total) = row
+            val namePaint = Paint(teamPaint)
+            while (namePaint.measureText(name) > nameW * 0.94f && namePaint.textSize > 8f) {
+                namePaint.textSize -= 1f
+            }
+            canvas.drawText(name, left + nameW / 2f, baselineFor(namePaint, centerY), namePaint)
+            for (i in 0 until columnCount) {
+                val settled = scores.getOrElse(i) { -1 }
+                val paint = if (settled >= 0) numberPaint else dimPaint
+                val text = if (settled >= 0) settled.toString() else getString(R.string.break_empty_cell)
+                canvas.drawText(text, quarterCenterX(i), baselineFor(paint, centerY), paint)
+            }
+            canvas.drawText(
+                total.coerceAtMost(MAX_SCORE).toString(),
+                totalLeft + totalW / 2f, baselineFor(totalPaint, centerY), totalPaint
+            )
+        }
+
+        // 提早收播（還沒打完四節）標註進行到第幾節，否則看圖的人會以為資料缺漏。
+        // 畫在各節表下方、接縫上方的空白帶並靠左——原本靠右畫在 seamTop 附近會壓到總計數字。
+        if (period < StreamPrefs.QUARTER_COUNT) {
+            val notePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = DIM_INK
+                textAlign = Paint.Align.LEFT
+                textSize = 11f * k
+            }
+            canvas.drawText(
+                getString(R.string.game_summary_partial_note, periodLabel()),
+                left, seamTop - 8f * k, notePaint
+            )
+        }
+    }
+
+    /**
+     * 球員表：單欄一路列到底，欄名做成實心金帶黑字，資料列交替底色。
+     * 姓名欄與六個數據欄全部鎖死等寬（Boss 指定），得分正藍、失誤正紅，0 一律不標色。
+     */
+    private fun drawSummaryPlayerTable(canvas: Canvas, panel: RectF, k: Float, playerTop: Float) {
+        // v0.22.0：賽果圖不畫「未指定」那一列（Boss 2026-09-06）——整列都是「–」很難看，
+        // 未指定的得分仍算在頂端總計裡。球員數據視窗與分享 LINE 維持顯示，操作者才知道有沒有漏指定。
+        val rows = buildPlayerStatRows(roster, summarizeScorers(highlightMarkers), playerStatBook)
+            .filterNot { it.isUnassigned }
+        if (rows.isEmpty()) return
+
+        val nameW = 96f * k
+        val colW = 68f * k
+        val tableW = nameW + colW * (1 + PlayerStatType.entries.size)
+        val left = panel.centerX() - tableW / 2f
+        fun colCenterX(i: Int) = left + nameW + colW * (i + 0.5f)
+
+        val top = playerTop + 4f * k
+        val headerH = 18f * k
+        // 列高把可用高度分給實際列數（滿編 15 人＋未指定時最密）。
+        // 上限 2 倍樣品列高：名單只有一兩人時不要把每列撐成整片空白。
+        val available = panel.bottom - 8f * k - (top + headerH)
+        val rowH = (available / rows.size).coerceAtMost(30f * k)
+
+        // 欄名金帶
+        canvas.drawRect(
+            RectF(left, top, left + tableW, top + headerH),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = GOLD_BAND }
+        )
+        val headPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ZONE_PLAYER
+            typeface = Typeface.DEFAULT_BOLD
+            textAlign = Paint.Align.CENTER
+            textSize = 11f * k
+        }
+        val headCenterY = top + headerH / 2f
+        canvas.drawText(
+            getString(R.string.player_stats_header_name),
+            left + nameW / 2f, baselineFor(headPaint, headCenterY), headPaint
+        )
+        val labels = listOf(getString(R.string.player_stats_header_points)) +
+            PlayerStatType.entries.map { statTypeLabel(it) }
+        labels.forEachIndexed { i, label ->
+            canvas.drawText(label, colCenterX(i), baselineFor(headPaint, headCenterY), headPaint)
+        }
+
+        val zebraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ROW_ALT }
+        // 字級跟著列高走（樣品是 13px 字配 17.6px 列高，約 0.74）
+        val bodyTextSize = (rowH * 0.74f).coerceAtMost(20f * k)
+        val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = INK
+            textAlign = Paint.Align.CENTER
+            textSize = bodyTextSize
+        }
+        val statPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = INK
+            textAlign = Paint.Align.CENTER
+            textSize = bodyTextSize
+        }
+        val zeroPaint = Paint(statPaint).apply { color = DIM_INK }
+        val pointsPaint = Paint(statPaint).apply {
+            color = POINTS_BLUE
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val turnoverPaint = Paint(statPaint).apply {
+            color = TURNOVER_RED
+            typeface = Typeface.DEFAULT_BOLD
+        }
+
+        rows.forEachIndexed { index, statRow ->
+            val rowTop = top + headerH + rowH * index
+            if (index % 2 == 1) {
+                canvas.drawRect(RectF(left, rowTop, left + tableW, rowTop + rowH), zebraPaint)
+            }
+            val centerY = rowTop + rowH / 2f
+            val displayName =
+                if (statRow.isUnassigned) getString(R.string.highlight_stats_unassigned) else statRow.name
+            val rowNamePaint = Paint(namePaint).apply {
+                if (statRow.isUnassigned) color = DIM_INK
+                while (measureText(displayName) > nameW * 0.94f && textSize > 8f) textSize -= 1f
+            }
+            canvas.drawText(displayName, left + nameW / 2f, baselineFor(rowNamePaint, centerY), rowNamePaint)
+
+            val pts = statRow.points
+            canvas.drawText(
+                pts.toString(), colCenterX(0), baselineFor(statPaint, centerY),
+                if (pts > 0) pointsPaint else zeroPaint
+            )
+            PlayerStatType.entries.forEachIndexed { i, type ->
+                // 「未指定」只可能有得分，五項畫「–」而不是 0，避免看成真的記了零次
+                if (statRow.isUnassigned) {
+                    canvas.drawText(
+                        getString(R.string.break_empty_cell), colCenterX(i + 1),
+                        baselineFor(zeroPaint, centerY), zeroPaint
+                    )
+                    return@forEachIndexed
+                }
+                val value = statRow.statOf(type)
+                val paint = when {
+                    value == 0 -> zeroPaint
+                    type == PlayerStatType.TURNOVER -> turnoverPaint
+                    else -> statPaint
+                }
+                canvas.drawText(value.toString(), colCenterX(i + 1), baselineFor(paint, centerY), paint)
+            }
+        }
+    }
+
+    /**
+     * 存進手機相簿：API 29+ 走 `MediaStore.Images` + `Pictures/`，API 26~28 退回 App 專屬 Pictures 目錄。
+     *
+     * **刻意不沿用錄影那條 [startRecordToGallery]**：錄影插的是 `MediaStore.Downloads` +
+     * `DIRECTORY_DOWNLOADS`，影片放下載資料夾沒問題，但圖片放那裡相簿掃不到，
+     * Boss 要上傳 YouTube／轉傳 LINE 會找不到。
+     *
+     * 失敗**不吞例外**（與 [PlayerStatStore.save] 的策略刻意不同）——這張圖是 Boss 要拿去用的產物，
+     * 靜默失敗等於白做，回傳失敗原因由呼叫端跳 Toast 明講。
+     */
+    private fun saveGameSummaryImage(bitmap: Bitmap, fileName: String): Result<String> = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IOException("MediaStore insert 回傳 null")
+            try {
+                contentResolver.openOutputStream(uri)?.use { out ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                        throw IOException("PNG 壓縮失敗")
+                    }
+                } ?: throw IOException("openOutputStream 回傳 null")
+                // 解除 pending 也要在保護區內：它若失敗，檔案會一直是 pending 狀態，
+                // 相簿看不到卻回報成功（Codex 詰問指出原本 update 在 try 之外）。
+                val published = contentResolver.update(
+                    uri, ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }, null, null
+                )
+                if (published <= 0) throw IOException("解除 pending 失敗，相簿不會顯示")
+            } catch (e: Exception) {
+                // 失敗要把佔位的 pending 列刪掉，不留一筆 0 byte 的殘檔在相簿。
+                // 清理本身再失敗也不能蓋掉原始錯誤——原始錯誤才是 Boss 要看到的原因。
+                runCatching { contentResolver.delete(uri, null, null) }
+                throw e
+            }
+            return@runCatching Environment.DIRECTORY_PICTURES
+        }
+        // ponytail: API 26~28 天花板——退回免權限的 App 專屬 Pictures 目錄，做法同錄影（見 startRecordToGallery）
+        val dir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+            ?: throw IOException("取不到 App 專屬 Pictures 目錄")
+        if (!dir.exists()) dir.mkdirs()
+        val file = File(dir, fileName)
+        try {
+            file.outputStream().use { out ->
+                if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                    throw IOException("PNG 壓縮失敗")
+                }
+            }
+        } catch (e: Exception) {
+            // 這條路沒有 MediaStore 的 pending 機制，寫壞的半截檔要自己刪
+            runCatching { file.delete() }
+            throw e
+        }
+        file.absolutePath
+    }
+
+    /**
+     * 檔名帶日期時間與比分——同一天同兩隊可能打兩場，只有日期不夠分辨。
+     * **精確到秒**：手動重出是「一律存新檔不覆蓋」，只到分鐘的話同一分鐘內重出兩次，
+     * API 26~28 那條 `File` 路徑會直接覆寫掉前一張（Codex 詰問指出）。
+     */
+    private fun gameSummaryFileName(): String {
+        val stamp = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.TAIWAN).format(Date())
+        val safe = { name: String -> name.replace(Regex("[\\\\/:*?\"<>|]"), "") }
+        return "${stamp}_${safe(teamHomeName)}${scoreHome}-${scoreAway}${safe(teamAwayName)}.png"
+    }
+
+    /**
+     * 產圖並存檔，成功／失敗都跳 Toast 明講。
+     *
+     * **同步執行**：返回鍵那條路是 `stopLiveStream()` 後緊接 `finish()`（見
+     * [showExitDuringLiveConfirmDialog]），丟進 `lifecycleScope` 會被 `onDestroy` 連帶取消。
+     * 1920×1080 的 Canvas 繪製與 PNG 壓縮在收播當下做完即可，不值得為它另開 NonCancellable 範圍。
+     */
+    private fun exportGameSummaryImage() {
+        val result = runCatching {
+            val bitmap = Bitmap.createBitmap(GAME_SUMMARY_WIDTH, GAME_SUMMARY_HEIGHT, Bitmap.Config.ARGB_8888)
+            try {
+                // 繪圖中途拋例外時 bitmap 也要回收（Codex 詰問：原本在 build 裡配置，失敗就沒人收）
+                drawGameSummary(bitmap)
+                saveGameSummaryImage(bitmap, gameSummaryFileName()).getOrThrow()
+            } finally {
+                bitmap.recycle()
+            }
+        }
+        result.onSuccess { location ->
+            DiagLogger.log(this, "SUMMARY", "賽果圖已存 $location")
+            Toast.makeText(
+                this, getString(R.string.game_summary_saved_toast, location), Toast.LENGTH_LONG
+            ).show()
+        }.onFailure { error ->
+            DiagLogger.log(this, "SUMMARY", "賽果圖存檔失敗 ${error.message}")
+            Toast.makeText(
+                this, getString(R.string.game_summary_failed_toast, error.message ?: ""), Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     private companion object {
         const val YOUTUBE_RTMP_BASE_URL = "rtmp://a.rtmp.youtube.com/live2/"
         const val AUDIO_BITRATE = 128 * 1000
@@ -4646,15 +5197,54 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         const val MAX_SCORE = 999
         // v0.19.0：得分者選擇視窗一列幾顆姓名按鈕。直播畫面鎖橫式、螢幕高度吃緊，
         // 12 位排 6 欄 2 列才不會被對話框高度截掉（3 欄 4 列實測會看不到後面幾位）。
-        const val SCORER_PICKER_COLUMNS = 6
-        // 名單上限 12（StreamPrefs.ROSTER_MAX_SIZE）÷ 6 欄＝最多 2 列，視窗高度固定約 132dp、
+        // v0.22.0：名單上限 12→15，6→5 欄（15÷5＝三列剛好排滿，不留空位）。
+        const val SCORER_PICKER_COLUMNS = 5
+        // 名單上限 15（StreamPrefs.ROSTER_MAX_SIZE）÷ 5 欄＝最多 3 列，視窗高度約 198dp、
         // 垂直置中不會蓋到貼齊底部的計分鈕；改動這兩個數字前要重新確認會不會蓋住
         const val SCORER_PICKER_TEXT_SP = 15f
         // 半透明——選人當下仍看得到後面的直播畫面
         const val SCORER_PICKER_BUTTON_ALPHA = 0.8f
 
-        // 球員數據表 12 列 × 6 欄，橫式螢幕高度吃緊，字級比選人視窗小
+        // 球員數據表 15 列 × 7 欄，橫式螢幕高度吃緊，字級比選人視窗小（視窗本身是 ScrollView，會捲）
         const val PLAYER_STATS_TEXT_SP = 12f
+
+        // v0.22.0：收播賽果圖固定 1920×1080，不跟串流解析度走（獨立產物，非燒入圖層）
+        const val GAME_SUMMARY_WIDTH = 1920
+        const val GAME_SUMMARY_HEIGHT = 1080
+        // 四邊留黑（Boss 指定）；數值與定稿樣品一致
+        const val GAME_SUMMARY_MARGIN_X = 57f
+        const val GAME_SUMMARY_MARGIN_Y = 40f
+        // 上半區（標題＋各節表）佔面板高度的比例，其餘給接縫與球員區
+        const val GAME_SUMMARY_HEADER_RATIO = 0.276f
+        // 定稿樣品的面板寬度；所有版面數字都以它為基準再乘上放大倍率
+        const val SAMPLE_PANEL_WIDTH = 752f
+        // 上半區內部的縱向位置，全部用「上半區高度的比例」表示（數值取自定稿樣品的量測值）：
+        // 金飾線 21/113、欄名 48/113、主隊 78/113、客隊 101/113
+        const val TITLE_ACCENT_RATIO = 0.185f
+        const val QUARTER_HEADER_RATIO = 0.425f
+        const val QUARTER_HOME_RATIO = 0.690f
+        const val QUARTER_AWAY_RATIO = 0.880f
+        const val QUARTER_HEADER_LINE_RATIO = 0.520f
+        const val QUARTER_VLINE_TOP_RATIO = 0.330f
+        const val QUARTER_VLINE_BOTTOM_RATIO = 0.960f
+
+        // 定稿配色（墨綠系，Boss 2026-09-06 選定）——全部不透明色，
+        // 半透明疊在漸層上色差會隨位置浮動，縮圖後區塊感就沒了
+        val ZONE_QUARTER = Color.rgb(28, 66, 57)     // #1C4239 上半區
+        val ZONE_PLAYER = Color.rgb(12, 33, 29)      // #0C211D 球員區
+        val SEAM_COLOR = Color.rgb(6, 19, 16)        // #061310 接縫帶
+        val ROW_ALT = Color.rgb(24, 54, 48)          // #183630 斑馬列
+        val GOLD_BAND = Color.rgb(205, 174, 110)     // #CDAE6E 球員欄名金帶
+        val GOLD_LIGHT = Color.rgb(239, 206, 135)    // #EFCE87
+        val GOLD_DARK = Color.rgb(217, 166, 79)      // #D9A64F
+        val GOLD_NUM = Color.rgb(246, 223, 164)      // #F6DFA4 總計
+        val FRAME_GOLD = Color.argb(71, 250, 214, 150)
+        val INK = Color.rgb(241, 238, 226)           // #F1EEE2 一般文字
+        val DIM_INK = Color.argb(77, 241, 238, 226)  // 0 值：30% 不透明度
+        val QUARTER_HEAD_GREY = Color.rgb(195, 203, 199) // #C3CBC7 節數標題淺灰
+        val DIVIDER_WHITE = Color.argb(153, 255, 255, 255) // 分隔線白色 60%
+        val POINTS_BLUE = Color.rgb(30, 123, 255)    // #1E7BFF 得分正藍
+        val TURNOVER_RED = Color.rgb(255, 45, 32)    // #FF2D20 失誤正紅
 
         // v0.5.0：音量鍵每次按下的變焦增量（RootEncoder setZoom 單位＝倍率，1.0＝無變焦）
         const val ZOOM_STEP = 0.15f

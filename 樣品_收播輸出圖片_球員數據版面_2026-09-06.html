@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>收播輸出圖片 — 球員數據版面提案</title>
+<style>
+  :root {
+    --navy-top: rgba(23, 56, 104, 0.84);
+    --navy-bottom: rgba(13, 33, 64, 0.84);
+    --gold-border: rgba(255, 214, 140, 0.22);
+    --gold-line-light: #F3CF7F;
+    --gold-line-dark: #E0A83F;
+    --gold-divider: rgba(243, 207, 127, 0.35);
+    --warm-white: #F6EFE0;
+    --box-gold-light: #F7DFA0;
+    --box-gold-dark: #CF9F45;
+    --dim-white: rgba(246, 239, 224, 0.45);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a1a;
+    font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    color: var(--warm-white);
+    padding: 24px;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .note { color: #999; font-size: 13px; margin-bottom: 6px; line-height: 1.7; }
+  .note b { color: var(--gold-line-light); font-weight: 700; }
+  .sample { margin-bottom: 40px; }
+  .sample h2 {
+    font-size: 15px; color: var(--gold-line-light);
+    margin-bottom: 4px; font-weight: 700;
+  }
+  .sample .desc { color: #999; font-size: 13px; margin-bottom: 10px; line-height: 1.6; }
+  .sample .desc .good { color: #8fce8f; }
+  .sample .desc .bad { color: #d98c8c; }
+
+  /* 16:9 黑畫面模擬框＝實際輸出 1920×1080，此處 1/2.4 縮放預覽 */
+  .frame {
+    width: 800px; height: 450px; background: #000;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #333; position: relative; overflow: hidden;
+  }
+  .score-chip {
+    background: linear-gradient(135deg, var(--box-gold-light), var(--box-gold-dark));
+    color: #111; font-weight: 900; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  /* 共用面板材質（與燒入計分板同一套：藏青漸層＋金細框＋頂緣金飾線） */
+  .panel {
+    background: linear-gradient(180deg, var(--navy-top), var(--navy-bottom));
+    border: 2px solid var(--gold-border); border-radius: 16px;
+    position: relative;
+  }
+  .accent {
+    position: absolute; top: 8px; left: 24px; right: 24px; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold-line-light) 25%,
+                var(--gold-line-dark) 50%, var(--gold-line-light) 75%, transparent);
+  }
+  /* 頂端場次識別列（圖片被單獨轉傳到 LINE 時仍看得懂是哪一場） */
+  .matchbar {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    padding: 14px 0 10px; border-bottom: 1px solid var(--gold-divider);
+  }
+  .matchbar .ev { color: var(--gold-line-light); font-size: 13px; letter-spacing: 2px; }
+  .matchbar .tm { font-size: 19px; font-weight: 700; }
+  .matchbar .sc { width: 46px; height: 30px; font-size: 20px; }
+  .matchbar .date { color: var(--dim-white); font-size: 12px; }
+
+  table { border-collapse: collapse; width: 100%; }
+  thead th {
+    color: var(--gold-line-light); font-weight: 700;
+    border-bottom: 1px solid var(--gold-divider);
+  }
+  td, th { text-align: center; }
+  td.nm, th.nm { text-align: left; }
+  tbody tr + tr td { border-top: 1px solid rgba(243, 207, 127, 0.10); }
+  .zero { color: var(--dim-white); }
+  .pts { color: var(--box-gold-light); font-weight: 900; }
+  .tagout { color: var(--dim-white); font-size: 0.72em; margin-left: 4px; }
+
+  /* ---------- 樣式01：單欄長表（滿版一張表） ---------- */
+  .s01 .panel { width: 720px; padding: 0 26px 8px; }
+  .s01 .matchbar { flex-direction: column; gap: 0; padding: 0 0 6px; border-bottom: none; }
+
+  /* 賽事名稱第一列嵌在金飾線缺口（做法同休息畫面） */
+  .s01 .evbar { display: flex; align-items: center; gap: 16px; width: 100%; padding: 6px 4px 2px; }
+  .s01 .evbar .rule { flex: 1; height: 3px; }
+  .s01 .evbar .rule.l { background: linear-gradient(90deg, transparent, var(--gold-line-light) 55%, var(--gold-line-dark)); }
+  .s01 .evbar .rule.r { background: linear-gradient(90deg, var(--gold-line-dark), var(--gold-line-light) 45%, transparent); }
+  .s01 .evbar .evname {
+    color: var(--gold-line-light); font-size: 19px; font-weight: 700;
+    letter-spacing: 3px; white-space: nowrap;
+  }
+
+  /* 各節表：沿用休息畫面那套（金色欄名＋欄名下一條金線），置中，不畫直立線 */
+  .s01 .qtable { border-collapse: collapse; width: auto; margin: 1px auto 4px; }
+  .s01 .qtable thead th {
+    font-size: 12px; font-weight: 700; color: var(--gold-line-light);
+    padding: 0 19px 3px; border-bottom: 2px solid var(--gold-divider);
+  }
+  .s01 .qtable td { font-size: 17px; font-weight: 700; padding: 1px 19px; }
+  .s01 .qtable tbody tr + tr td { border-top: none; }
+  .s01 .qtable tbody tr:first-child td { padding-top: 4px; }
+  .s01 .qtable .tname { text-align: left; font-size: 15px; padding-left: 0; padding-right: 24px; }
+  .s01 .qtable .totcol { color: var(--box-gold-light); }
+
+  /* 球員表：單欄，12 列一路到底 */
+  .s01 .ptable th, .s01 .ptable td { padding: 1px 6px; font-size: 13px; }
+  .s01 .ptable thead th { font-size: 11px; padding-bottom: 4px; }
+  .s01 .ptable td.nm { font-size: 13px; }
+
+  /* ---------- 樣式02：雙欄分流（左右各半，字放大） ---------- */
+  .s02 .panel { width: 752px; padding: 0 20px 8px; }
+  .s02 .cols { display: flex; gap: 18px; padding-top: 7px; }
+  .s02 .cols > div { flex: 1; }
+  .s02 th, .s02 td { padding: 4px 3px; font-size: 18px; }
+  .s02 thead th { font-size: 11px; padding-bottom: 5px; }
+  .s02 td.nm { font-size: 17px; }
+
+  /* 樣式02 專用：頂端＝金線缺口嵌賽事名稱 ＋「隊名｜各節｜總計」兩列表（無欄位標題） */
+  .s02 .matchbar { flex-direction: column; gap: 0; padding: 0 0 6px; }
+
+  /* 賽事名稱嵌在金飾線缺口，做法與休息畫面相同；只取第一行 */
+  .s02 .evbar { display: flex; align-items: center; gap: 16px; width: 100%; padding: 9px 4px 4px; }
+  .s02 .evbar .rule { flex: 1; height: 3px; }
+  .s02 .evbar .rule.l { background: linear-gradient(90deg, transparent, var(--gold-line-light) 55%, var(--gold-line-dark)); }
+  .s02 .evbar .rule.r { background: linear-gradient(90deg, var(--gold-line-dark), var(--gold-line-light) 45%, transparent); }
+  .s02 .evbar .evname {
+    color: var(--gold-line-light); font-size: 20px; font-weight: 700;
+    letter-spacing: 3px; white-space: nowrap;
+  }
+
+  /* 計分板表：沿用休息畫面那套（金色欄名＋欄名下一條金線），置中且明顯窄於面板，
+     不畫任何直立線——直立線會跟下面球員表的中線連成一條 */
+  .s02 .qtable { border-collapse: collapse; width: auto; margin: 2px auto 8px; }
+  .s02 .qtable thead th {
+    font-size: 14px; font-weight: 700; color: var(--gold-line-light);
+    padding: 0 20px 5px; border-bottom: 2px solid var(--gold-divider);
+  }
+  .s02 .qtable td { font-size: 21px; font-weight: 700; padding: 5px 20px; }
+  .s02 .qtable tbody tr + tr td { border-top: none; }
+  .s02 .qtable tbody tr:first-child td { padding-top: 8px; }
+  .s02 .qtable .tname { text-align: left; font-size: 19px; padding-left: 0; padding-right: 26px; }
+  .s02 .qtable .totcol { color: var(--box-gold-light); }
+
+  /* ---------- 樣式03：有數據放大／掛零壓縮 ---------- */
+  .s03 .panel { width: 700px; padding: 0 26px 8px; }
+  .s03 .matchbar { padding: 9px 0 6px; }
+  .s03 th, .s03 td { padding: 2px 6px; font-size: 16px; }
+  .s03 thead th { font-size: 12px; padding-bottom: 4px; }
+  .s03 .benchrow {
+    border-top: 1px solid var(--gold-divider); margin-top: 8px; padding-top: 8px;
+    color: var(--dim-white); font-size: 13px; line-height: 1.5;
+  }
+  .s03 .benchrow b { color: var(--warm-white); font-weight: 400; }
+
+  /* ---------- 樣式04：卡片式 ---------- */
+  .s04 .panel { width: 760px; padding: 0 18px 14px; }
+  .s04 .grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 7px; padding-top: 10px;
+  }
+  .s04 .card {
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(243, 207, 127, 0.16);
+    border-radius: 7px; padding: 5px 7px;
+  }
+  .s04 .card .top {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 3px;
+  }
+  .s04 .card .nm { font-size: 14px; font-weight: 700; }
+  .s04 .card .pt { font-size: 17px; }
+  .s04 .card .row4 { display: flex; justify-content: space-between; font-size: 10px; }
+  .s04 .card .row4 span { text-align: center; }
+  .s04 .card .row4 i { display: block; font-style: normal; color: var(--dim-white); font-size: 9px; }
+</style>
+</head>
+<body>
+
+<h1>收播輸出圖片 — 球員數據版面提案（圖2）</h1>
+<p class="note">
+  每個黑框＝實際輸出的 <b>1920×1080</b>，此處以 1/2.4 預覽。<br>
+  資料是虛構的示範值，但<b>結構照實際程式</b>：名單 12 人全列（掛零也列）＋名單外有數據的人（切過年級才會出現）＋未指定，
+  所以列數是 <b>動態的，可能超過 12 列</b>。欄位含姓名共 <b>7 欄</b>。<br>
+  <b>圖1（賽果）不在這裡</b>——那張直接重用現成的休息畫面，不需要重新設計。
+</p>
+
+<!-- ========== 樣式01 ========== -->
+<div class="sample s01">
+  <h2>樣式01　單欄長表　<span>← 定案版（下面 02～04 是舊版對照，未同步更新）</span></h2>
+  <p class="desc">
+    一張表從頭列到尾，欄位對齊最好讀。標題＝賽事名稱第一列嵌在金線缺口；各節表沿用休息畫面那套
+    （金色欄名＋欄名下一條金線），不畫直立線；名單外不列；球員為 Boss 提供的實際 12 人數據。
+  </p>
+  <div class="frame">
+    <div class="panel">
+      <div class="matchbar">
+        <div class="evbar">
+          <span class="rule l"></span>
+          <span class="evname">2026 中正盃</span>
+          <span class="rule r"></span>
+        </div>
+        <table class="qtable">
+          <thead>
+            <tr>
+              <th></th>
+              <th>第1節</th><th>第2節</th><th>第3節</th><th>第4節</th>
+              <th>總計</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="tname">信義國中</td>
+              <td>24</td><td>10</td><td>13</td><td>12</td>
+              <td class="totcol">59</td>
+            </tr>
+            <tr>
+              <td class="tname">中正國中</td>
+              <td>2</td><td>6</td><td>8</td><td>5</td>
+              <td class="totcol">21</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <table class="ptable">
+        <thead>
+          <tr>
+            <th class="nm">球員</th><th>得分</th><th>籃板</th><th>助攻</th>
+            <th>火鍋</th><th>抄截</th><th>失誤</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="nm">李尚恩</td><td class="pts">13</td><td>3</td><td>2</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td></tr>
+          <tr><td class="nm">何祈叡</td><td class="pts">10</td><td>7</td><td>2</td><td class="zero">0</td><td>2</td><td class="zero">0</td></tr>
+          <tr><td class="nm">林鼎烽</td><td class="pts">10</td><td>8</td><td>1</td><td>1</td><td class="zero">0</td><td>1</td></tr>
+          <tr><td class="nm">黃照庭</td><td class="pts">7</td><td class="zero">0</td><td>3</td><td class="zero">0</td><td>1</td><td>2</td></tr>
+          <tr><td class="nm">王秉謙</td><td class="pts">6</td><td>2</td><td>1</td><td class="zero">0</td><td class="zero">0</td><td>2</td></tr>
+          <tr><td class="nm">陳德翌</td><td class="pts">5</td><td class="zero">0</td><td>5</td><td class="zero">0</td><td>3</td><td>4</td></tr>
+          <tr><td class="nm">鄭力雍</td><td class="pts">5</td><td>5</td><td class="zero">0</td><td class="zero">0</td><td>2</td><td class="zero">0</td></tr>
+          <tr><td class="nm">葉家宏</td><td class="pts">3</td><td>4</td><td class="zero">0</td><td>2</td><td class="zero">0</td><td>3</td></tr>
+          <tr><td class="nm">洪浩鈞</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td></tr>
+          <tr><td class="nm">黃培倫</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td></tr>
+          <tr><td class="nm">廖宸逸</td><td class="zero">0</td><td>2</td><td class="zero">0</td><td class="zero">0</td><td>1</td><td>3</td></tr>
+          <tr><td class="nm">葉詠宸</td><td class="zero">0</td><td>2</td><td>1</td><td class="zero">0</td><td class="zero">0</td><td>1</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 樣式02 ========== -->
+<div class="sample s02">
+  <h2>樣式02　雙欄分流＋頂端各節比分</h2>
+  <p class="desc">
+    左右各一半，同樣 14 列但每列高度加倍。頂端場次列改成「隊名＋總分＋各節比分」一張小表，
+    吃掉原本浪費的 23% 上下黑底。
+    <span class="good">優點：字最大；四節分數併進來後<b>圖1 就不必另外出一張</b>。</span>
+    <span class="bad">缺點：兩邊欄位標題重複一次，視覺比較滿。</span>
+  </p>
+  <div class="frame">
+    <div class="panel">
+      <div class="accent"></div>
+      <div class="matchbar">
+        <div class="evbar">
+          <span class="rule l"></span>
+          <span class="evname">2026 中正盃</span>
+          <span class="rule r"></span>
+        </div>
+        <table class="qtable">
+          <thead>
+            <tr>
+              <th></th>
+              <th>第1節</th><th>第2節</th><th>第3節</th><th>第4節</th>
+              <th>總計</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="tname">信義國中</td>
+              <td>24</td><td>10</td><td>13</td><td>12</td>
+              <td class="totcol">59</td>
+            </tr>
+            <tr>
+              <td class="tname">中正國中</td>
+              <td>2</td><td>6</td><td>8</td><td>5</td>
+              <td class="totcol">21</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="cols">
+        <div>
+          <table>
+            <thead>
+              <tr><th class="nm">球員</th><th>分</th><th>板</th><th>助</th><th>鍋</th><th>抄</th><th>失</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="nm">李尚恩</td><td class="pts">13</td><td>3</td><td>2</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td></tr>
+              <tr><td class="nm">何祈叡</td><td class="pts">10</td><td>7</td><td>2</td><td class="zero">0</td><td>2</td><td class="zero">0</td></tr>
+              <tr><td class="nm">林鼎烽</td><td class="pts">10</td><td>8</td><td>1</td><td>1</td><td class="zero">0</td><td>1</td></tr>
+              <tr><td class="nm">黃照庭</td><td class="pts">7</td><td class="zero">0</td><td>3</td><td class="zero">0</td><td>1</td><td>2</td></tr>
+              <tr><td class="nm">王秉謙</td><td class="pts">6</td><td>2</td><td>1</td><td class="zero">0</td><td class="zero">0</td><td>2</td></tr>
+              <tr><td class="nm">陳德翌</td><td class="pts">5</td><td class="zero">0</td><td>5</td><td class="zero">0</td><td>3</td><td>4</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <table>
+            <thead>
+              <tr><th class="nm">球員</th><th>分</th><th>板</th><th>助</th><th>鍋</th><th>抄</th><th>失</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="nm">鄭力雍</td><td class="pts">5</td><td>5</td><td class="zero">0</td><td class="zero">0</td><td>2</td><td class="zero">0</td></tr>
+              <tr><td class="nm">葉家宏</td><td class="pts">3</td><td>4</td><td class="zero">0</td><td>2</td><td class="zero">0</td><td>3</td></tr>
+              <tr><td class="nm">廖宸逸</td><td class="zero">0</td><td>2</td><td class="zero">0</td><td class="zero">0</td><td>1</td><td>3</td></tr>
+              <tr><td class="nm">葉詠宸</td><td class="zero">0</td><td>2</td><td>1</td><td class="zero">0</td><td class="zero">0</td><td>1</td></tr>
+              <tr><td class="nm">洪浩鈞</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td></tr>
+              <tr><td class="nm">黃培倫</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 樣式03 ========== -->
+<div class="sample s03">
+  <h2>樣式03　有數據放大／整場掛零壓成一行</h2>
+  <p class="desc">
+    有上場記錄的人用大字排表，六項全零的人壓成底部一行帶過。
+    <span class="good">優點：字最大最好讀，家長找自己小孩最快。</span>
+    <span class="bad">缺點：<b>違反你 9/5 拍板的「12 人全部列出、掛零也列」</b>——要用這款等於改那條規則。</span>
+  </p>
+  <div class="frame">
+    <div class="panel">
+      <div class="accent"></div>
+      <div class="matchbar">
+        <span class="ev">2026 中正盃</span>
+        <span class="tm">信義國中</span>
+        <span class="score-chip sc">59</span>
+        <span class="tm">中正國中</span>
+        <span class="score-chip sc">21</span>
+        <span class="date">2026-09-06</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="nm">球員</th><th>得分</th><th>籃板</th><th>助攻</th>
+            <th>火鍋</th><th>抄截</th><th>失誤</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="nm">何祈叡</td><td class="pts">14</td><td>7</td><td>3</td><td>1</td><td>4</td><td>2</td></tr>
+          <tr><td class="nm">陳德翌</td><td class="pts">14</td><td>5</td><td>6</td><td>0</td><td>2</td><td>3</td></tr>
+          <tr><td class="nm">林昱丞</td><td class="pts">9</td><td>3</td><td>2</td><td>2</td><td>1</td><td>1</td></tr>
+          <tr><td class="nm">王柏翰</td><td class="pts">8</td><td>9</td><td>1</td><td>3</td><td>0</td><td>2</td></tr>
+          <tr><td class="nm">張祐寧</td><td class="pts">6</td><td>2</td><td>4</td><td>0</td><td>3</td><td>1</td></tr>
+          <tr><td class="nm">李承恩</td><td class="pts">4</td><td>4</td><td>0</td><td>1</td><td>1</td><td>0</td></tr>
+          <tr><td class="nm">黃子睿</td><td class="pts">2</td><td>1</td><td>2</td><td>0</td><td>2</td><td>1</td></tr>
+          <tr><td class="nm">吳彥廷</td><td class="zero">0</td><td>2</td><td>1</td><td class="zero">0</td><td class="zero">0</td><td>1</td></tr>
+          <tr><td class="nm">蔡宗翰</td><td class="zero">0</td><td>1</td><td class="zero">0</td><td class="zero">0</td><td>1</td><td class="zero">0</td></tr>
+          <tr><td class="nm">周聖傑<span class="tagout">名單外</span></td><td class="zero">0</td><td>2</td><td>1</td><td class="zero">0</td><td class="zero">0</td><td class="zero">0</td></tr>
+          <tr><td class="nm zero">未指定</td><td class="pts">2</td><td class="zero">—</td><td class="zero">—</td><td class="zero">—</td><td class="zero">—</td><td class="zero">—</td></tr>
+        </tbody>
+      </table>
+      <div class="benchrow">
+        本場無記錄：<b>劉家豪、鄭偉倫、謝明哲</b>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 樣式04 ========== -->
+<div class="sample s04">
+  <h2>樣式04　卡片式</h2>
+  <p class="desc">
+    每人一張小卡，4×4 格。
+    <span class="good">優點：單獨截一格轉傳給某位家長很方便，版面也最活。</span>
+    <span class="bad">缺點：數字沒有對齊成欄，要比較兩個人的籃板得用眼睛找；小字最小。</span>
+  </p>
+  <div class="frame">
+    <div class="panel">
+      <div class="accent"></div>
+      <div class="matchbar">
+        <span class="ev">2026 中正盃</span>
+        <span class="tm">信義國中</span>
+        <span class="score-chip sc">59</span>
+        <span class="tm">中正國中</span>
+        <span class="score-chip sc">21</span>
+        <span class="date">2026-09-06</span>
+      </div>
+      <div class="grid">
+        <div class="card"><div class="top"><span class="nm">何祈叡</span><span class="pt pts">14</span></div>
+          <div class="row4"><span><i>板</i>7</span><span><i>助</i>3</span><span><i>鍋</i>1</span><span><i>抄</i>4</span><span><i>失</i>2</span></div></div>
+        <div class="card"><div class="top"><span class="nm">陳德翌</span><span class="pt pts">14</span></div>
+          <div class="row4"><span><i>板</i>5</span><span><i>助</i>6</span><span><i>鍋</i>0</span><span><i>抄</i>2</span><span><i>失</i>3</span></div></div>
+        <div class="card"><div class="top"><span class="nm">林昱丞</span><span class="pt pts">9</span></div>
+          <div class="row4"><span><i>板</i>3</span><span><i>助</i>2</span><span><i>鍋</i>2</span><span><i>抄</i>1</span><span><i>失</i>1</span></div></div>
+        <div class="card"><div class="top"><span class="nm">王柏翰</span><span class="pt pts">8</span></div>
+          <div class="row4"><span><i>板</i>9</span><span><i>助</i>1</span><span><i>鍋</i>3</span><span><i>抄</i>0</span><span><i>失</i>2</span></div></div>
+        <div class="card"><div class="top"><span class="nm">張祐寧</span><span class="pt pts">6</span></div>
+          <div class="row4"><span><i>板</i>2</span><span><i>助</i>4</span><span><i>鍋</i>0</span><span><i>抄</i>3</span><span><i>失</i>1</span></div></div>
+        <div class="card"><div class="top"><span class="nm">李承恩</span><span class="pt pts">4</span></div>
+          <div class="row4"><span><i>板</i>4</span><span><i>助</i>0</span><span><i>鍋</i>1</span><span><i>抄</i>1</span><span><i>失</i>0</span></div></div>
+        <div class="card"><div class="top"><span class="nm">黃子睿</span><span class="pt pts">2</span></div>
+          <div class="row4"><span><i>板</i>1</span><span><i>助</i>2</span><span><i>鍋</i>0</span><span><i>抄</i>2</span><span><i>失</i>1</span></div></div>
+        <div class="card"><div class="top"><span class="nm">吳彥廷</span><span class="pt zero">0</span></div>
+          <div class="row4"><span><i>板</i>2</span><span><i>助</i>1</span><span><i>鍋</i>0</span><span><i>抄</i>0</span><span><i>失</i>1</span></div></div>
+        <div class="card"><div class="top"><span class="nm">蔡宗翰</span><span class="pt zero">0</span></div>
+          <div class="row4"><span><i>板</i>1</span><span><i>助</i>0</span><span><i>鍋</i>0</span><span><i>抄</i>1</span><span><i>失</i>0</span></div></div>
+        <div class="card"><div class="top"><span class="nm">劉家豪</span><span class="pt zero">0</span></div>
+          <div class="row4"><span><i>板</i>0</span><span><i>助</i>0</span><span><i>鍋</i>0</span><span><i>抄</i>0</span><span><i>失</i>0</span></div></div>
+        <div class="card"><div class="top"><span class="nm">鄭偉倫</span><span class="pt zero">0</span></div>
+          <div class="row4"><span><i>板</i>0</span><span><i>助</i>0</span><span><i>鍋</i>0</span><span><i>抄</i>0</span><span><i>失</i>0</span></div></div>
+        <div class="card"><div class="top"><span class="nm">謝明哲</span><span class="pt zero">0</span></div>
+          <div class="row4"><span><i>板</i>0</span><span><i>助</i>0</span><span><i>鍋</i>0</span><span><i>抄</i>0</span><span><i>失</i>0</span></div></div>
+        <div class="card"><div class="top"><span class="nm">周聖傑</span><span class="pt zero">0</span></div>
+          <div class="row4"><span><i>板</i>2</span><span><i>助</i>1</span><span><i>鍋</i>0</span><span><i>抄</i>0</span><span><i>失</i>0</span></div></div>
+        <div class="card"><div class="top"><span class="nm zero">未指定</span><span class="pt pts">2</span></div>
+          <div class="row4"><span><i>板</i>—</span><span><i>助</i>—</span><span><i>鍋</i>—</span><span><i>抄</i>—</span><span><i>失</i>—</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="note" style="margin-top:8px">
+  四款共用的東西：頂端場次識別列（賽事名稱＋兩隊＋比數＋日期）、藏青漸層底、金細框、頂緣金飾線。<br>
+  得分用金色粗體是為了跟其他五項分開——得分是唯讀的既成事實，其他五項在球員數據視窗裡可以事後 +1／−1。
+</p>
+
+</body>
+</html>

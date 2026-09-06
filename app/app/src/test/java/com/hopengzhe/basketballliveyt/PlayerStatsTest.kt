@@ -44,24 +44,63 @@ class PlayerStatsTest {
             listOf(ScorerTotal("李大同", 8)),
             book
         )
-        assertEquals(listOf("李大同", "王小明", "陳志豪"), rows.map { it.name })
+        // v0.22.0：得分相同（都是 0）時，有籃板的陳志豪排在全零的王小明前面
+        assertEquals(listOf("李大同", "陳志豪", "王小明"), rows.map { it.name })
         assertEquals(0, rows.first { it.name == "王小明" }.points)
         assertEquals(5, rows.first { it.name == "陳志豪" }.rebound)
     }
 
     @Test
-    fun `名單外有數據的人接在名單後面未指定固定最後`() {
+    fun `名單外的人完全不列出未指定固定最後`() {
+        // v0.22.0：Boss 指定拿掉「名單外」段（切年級後的前一批人不再出現在表上）
         val book = PlayerStatBook()
         book.add("舊年級球員", PlayerStatType.ASSIST, 2)
         val rows = buildPlayerStatRows(
             roster,
-            listOf(ScorerTotal("王小明", 4), ScorerTotal("", 6)),
+            listOf(ScorerTotal("王小明", 4), ScorerTotal("舊年級球員", 9), ScorerTotal("", 6)),
             book
         )
-        assertEquals(roster.size + 2, rows.size)
-        assertEquals("舊年級球員", rows[roster.size].name)
+        assertEquals(roster.size + 1, rows.size)
+        assertTrue(rows.none { it.name == "舊年級球員" })
         assertTrue(rows.last().isUnassigned)
         assertEquals(6, rows.last().points)
+    }
+
+    @Test
+    fun `零分時有記錄的排在全零之前只有失誤也算有記錄`() {
+        val names = listOf("全零甲", "只有失誤", "有籃板", "全零乙", "有得分")
+        val book = PlayerStatBook()
+        book.add("只有失誤", PlayerStatType.TURNOVER, 2)
+        book.add("有籃板", PlayerStatType.REBOUND, 3)
+        val rows = buildPlayerStatRows(names, listOf(ScorerTotal("有得分", 4)), book)
+
+        assertEquals(
+            listOf("有得分", "只有失誤", "有籃板", "全零甲", "全零乙"),
+            rows.map { it.name }
+        )
+    }
+
+    @Test
+    fun `賽果圖雙欄分流奇數時左欄多一列`() {
+        fun rowsOf(count: Int) = (1..count).map { PlayerStatRow("球員$it", 0, 0, 0, 0, 0) }
+
+        val (evenLeft, evenRight) = splitStatRowsIntoColumns(rowsOf(16))
+        assertEquals(8, evenLeft.size)
+        assertEquals(8, evenRight.size)
+        assertEquals("球員1", evenLeft.first().name)
+        assertEquals("球員9", evenRight.first().name)
+
+        val (oddLeft, oddRight) = splitStatRowsIntoColumns(rowsOf(15))
+        assertEquals(8, oddLeft.size)
+        assertEquals(7, oddRight.size)
+
+        val (singleLeft, singleRight) = splitStatRowsIntoColumns(rowsOf(1))
+        assertEquals(1, singleLeft.size)
+        assertTrue(singleRight.isEmpty())
+
+        val (emptyLeft, emptyRight) = splitStatRowsIntoColumns(emptyList())
+        assertTrue(emptyLeft.isEmpty())
+        assertTrue(emptyRight.isEmpty())
     }
 
     @Test

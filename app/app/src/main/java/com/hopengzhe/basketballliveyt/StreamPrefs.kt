@@ -434,7 +434,8 @@ object StreamPrefs {
     private const val KEY_ROSTER_ACTIVE_GRADE = "roster_active_grade"
 
     /** 每個年級的名單上限；超出的行在存檔時就被截掉。 */
-    const val ROSTER_MAX_SIZE = 12
+    // v0.22.0：12 → 15（Boss 2026-09-06）。選人視窗同步改 5 欄，15÷5＝三列剛好排滿。
+    const val ROSTER_MAX_SIZE = 15
 
     /** 年級選項，需與 strings.xml 的 roster_grade_options 一致。 */
     val ROSTER_GRADES = listOf("七年級", "八年級", "九年級")
