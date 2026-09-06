@@ -5,8 +5,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
-import android.widget.EditText
-import android.widget.FrameLayout
 import android.widget.Spinner
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -270,31 +268,21 @@ class SettingsActivity : AppCompatActivity() {
      * v0.19.0：球員名單編輯——「編輯目前年級名單」按鈕跳對話框，內容是一個多行輸入框，
      * 一行一位（[StreamPrefs.parseRoster] 會去空行、去頭尾空白、截到 12 位）。
      * 按確定當下就存進 [StreamPrefs]，不等「儲存設定」——否則切年級時上一份草稿會不見。
-     * ponytail: 直播畫面鎖橫式、軟鍵盤一開沒剩多少高度，12 個獨立輸入格排不下，用單一多行框最省。
+     * v0.22.3：輸入格改走 [RosterEditor]（5 欄 × 3 列獨立輸入格），與直播畫面那個入口共用。
+     * 原本的單一多行框在橫式螢幕一次只看得到四五行，12～15 位有一半在捲軸外。
      */
     private fun setupRosterSection() {
         binding.btnEditRoster.setOnClickListener {
             val grade = binding.spinnerRosterGrade.selectedItem?.toString()
                 ?: StreamPrefs.DEFAULT_ROSTER_GRADE
-            val paddingPx = (16 * resources.displayMetrics.density).toInt()
-            val editText = EditText(this).apply {
-                setText(StreamPrefs.serializeRoster(StreamPrefs.getRoster(this@SettingsActivity, grade)))
-                hint = getString(R.string.settings_roster_edit_hint)
-                gravity = android.view.Gravity.TOP or android.view.Gravity.START
-                minLines = 6
-                maxLines = StreamPrefs.ROSTER_MAX_SIZE
-                setSingleLine(false)
-                setSelection(text.length)
-            }
-            val container = FrameLayout(this).apply {
-                setPadding(paddingPx, paddingPx / 2, paddingPx, 0)
-                addView(editText)
-            }
+            val (editView, readEntries) = RosterEditor.build(
+                this, StreamPrefs.getRosterEntries(this, grade)
+            )
             AlertDialog.Builder(this)
                 .setTitle(getString(R.string.settings_roster_edit_title, grade))
-                .setView(container)
+                .setView(editView)
                 .setPositiveButton(getString(R.string.dialog_confirm_button)) { _, _ ->
-                    StreamPrefs.saveRoster(this, grade, editText.text.toString())
+                    StreamPrefs.saveRosterEntries(this, grade, readEntries())
                     val saved = StreamPrefs.getRoster(this, grade).size
                     Toast.makeText(
                         this,

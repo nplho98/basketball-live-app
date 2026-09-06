@@ -38,9 +38,36 @@ class PlayerRosterTest {
     }
 
     @Test
-    fun `serialize then parse keeps the same names`() {
-        val names = listOf("王小明", "李大華", "張三")
-        assertEquals(names, StreamPrefs.parseRoster(StreamPrefs.serializeRoster(names)))
+    fun `serialize then parse keeps numbers and names`() {
+        val entries = listOf(
+            StreamPrefs.RosterEntry("7", "王小明"),
+            StreamPrefs.RosterEntry("23", "李大華"),
+            StreamPrefs.RosterEntry("", "張三")
+        )
+        assertEquals(
+            entries,
+            StreamPrefs.parseRosterEntries(StreamPrefs.serializeRosterEntries(entries))
+        )
+    }
+
+    /**
+     * v0.22.11：加背號前存的名單是一行一個純姓名，沒有分隔符號。
+     * 這條擋的是「改格式把舊名單讀成空的」——那會讓 Boss 開場發現三個年級的人全不見了。
+     */
+    @Test
+    fun `legacy rows without a number still parse as names`() {
+        assertEquals(
+            listOf(
+                StreamPrefs.RosterEntry("", "王小明"),
+                StreamPrefs.RosterEntry("", "李大華")
+            ),
+            StreamPrefs.parseRosterEntries("王小明\n李大華")
+        )
+    }
+
+    @Test
+    fun `entry with a number but no name is dropped`() {
+        assertEquals(emptyList<StreamPrefs.RosterEntry>(), StreamPrefs.parseRosterEntries("7|   "))
     }
 
     @Test

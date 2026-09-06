@@ -57,6 +57,17 @@ object StreamPrefs {
     // 開播確認框勾「重置計分板」時一併清空（見 LiveActivity.resetScoreboardForNewGame）。
     private const val KEY_QUARTER_SCORES_HOME = "quarter_scores_home"
     private const val KEY_QUARTER_SCORES_AWAY = "quarter_scores_away"
+
+    // v0.22.1：關掉 APP 再開要接回上一場（Boss 2026-09-06 拍板「一律接回」）。
+    // 檔名時間戳存起來，重開才找得到同一份 highlights_/stats_ 檔；
+    // 計分板現值也一起存，否則接回統計卻是 0-0，收播圖會自相矛盾。
+    // 舊資料最多活到下次開播那一刻——開播一律重置計分板並換新時間戳。
+    private const val KEY_LAST_SESSION_STAMP = "last_session_stamp"
+    private const val KEY_SCORE_HOME = "score_home"
+    private const val KEY_SCORE_AWAY = "score_away"
+    private const val KEY_FOUL_HOME = "foul_home"
+    private const val KEY_FOUL_AWAY = "foul_away"
+    private const val KEY_PERIOD = "period"
     const val QUARTER_COUNT = 4
 
     /** v0.18.15：各節分數欄位總格數＝正規四節＋三次延長（OT1～OT3），節數上限也是這個數。 */
@@ -358,6 +369,47 @@ object StreamPrefs {
             .apply()
     }
 
+    /**
+     * v0.22.1：上一場的檔名時間戳。null＝從來沒開播過，重開 APP 就是全新一場。
+     * 只在開播那一刻寫入（[LiveActivity.beginRtmpStreaming]），收播不清——收播後還要輸出圖片／傳 LINE。
+     */
+    fun getLastSessionStamp(context: Context): String? =
+        prefs(context).getString(KEY_LAST_SESSION_STAMP, null)
+
+    fun saveLastSessionStamp(context: Context, stamp: String) {
+        prefs(context).edit().putString(KEY_LAST_SESSION_STAMP, stamp).apply()
+    }
+
+    /** v0.22.1：計分板現值（分數／犯規／節數）。各節結算分數走 [getQuarterScoresHome] 那組。 */
+    data class ScoreboardState(
+        val scoreHome: Int,
+        val scoreAway: Int,
+        val foulHome: Int,
+        val foulAway: Int,
+        val period: Int
+    )
+
+    fun getScoreboardState(context: Context): ScoreboardState = prefs(context).let { p ->
+        ScoreboardState(
+            scoreHome = p.getInt(KEY_SCORE_HOME, 0),
+            scoreAway = p.getInt(KEY_SCORE_AWAY, 0),
+            foulHome = p.getInt(KEY_FOUL_HOME, 0),
+            foulAway = p.getInt(KEY_FOUL_AWAY, 0),
+            // 節數下限夾 1：舊版偏好沒有這個 key，讀到 0 會讓計分板顯示「第 0 節」
+            period = p.getInt(KEY_PERIOD, 1).coerceAtLeast(1)
+        )
+    }
+
+    fun saveScoreboardState(context: Context, state: ScoreboardState) {
+        prefs(context).edit()
+            .putInt(KEY_SCORE_HOME, state.scoreHome)
+            .putInt(KEY_SCORE_AWAY, state.scoreAway)
+            .putInt(KEY_FOUL_HOME, state.foulHome)
+            .putInt(KEY_FOUL_AWAY, state.foulAway)
+            .putInt(KEY_PERIOD, state.period)
+            .apply()
+    }
+
     /** 開播勾「重置計分板」時一併清空各節結算分數（見 LiveActivity.resetScoreboardForNewGame）。 */
     fun clearQuarterScores(context: Context) {
         prefs(context).edit()
@@ -446,23 +498,50 @@ object StreamPrefs {
      * 多行文字整成名單：正規化 CRLF／CR、去頭尾空白、丟掉空行，最多 [ROSTER_MAX_SIZE] 位。
      * 存檔與讀取都走這裡，格式契約只有一份。
      */
-    fun parseRoster(raw: String?): List<String> = (raw ?: "")
+    /**
+     * v0.22.11：名單一位球員一筆，含背號（Boss 2026-09-06）。
+     *
+     * 存檔格式仍是「一行一位」，每行改成 `號碼|姓名`。**沒有分隔符號的舊資料整行當姓名、
+     * 號碼留空**——v0.22.10 以前存的名單不用轉檔就能繼續用。
+     */
+    data class RosterEntry(val number: String, val name: String)
+
+    private const val ROSTER_FIELD_SEP = "|"
+
+    fun parseRosterEntries(raw: String?): List<RosterEntry> = (raw ?: "")
         .replace("\r\n", "\n")
         .replace('\r', '\n')
         .split('\n')
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
+        .mapNotNull { line ->
+            val parts = line.split(ROSTER_FIELD_SEP, limit = 2)
+            val entry =
+                if (parts.size == 2) RosterEntry(parts[0].trim(), parts[1].trim())
+                else RosterEntry("", parts[0].trim())
+            // 姓名空白＝這一格沒人，整筆丟掉（號碼單獨存在沒有意義，也不能拿來記數據）
+            entry.takeIf { it.name.isNotEmpty() }
+        }
         .take(ROSTER_MAX_SIZE)
 
-    fun serializeRoster(names: List<String>): String = names.joinToString("\n")
+    /** 姓名清單。統計、選人視窗、分享文字都只認姓名，維持既有型別不動。 */
+    fun parseRoster(raw: String?): List<String> = parseRosterEntries(raw).map { it.name }
+
+    fun serializeRosterEntries(entries: List<RosterEntry>): String =
+        entries.joinToString("\n") { it.number + ROSTER_FIELD_SEP + it.name }
+
+    fun getRosterEntries(context: Context, grade: String): List<RosterEntry> =
+        parseRosterEntries(prefs(context).getString(KEY_ROSTER_PREFIX + grade, ""))
 
     fun getRoster(context: Context, grade: String): List<String> =
-        parseRoster(prefs(context).getString(KEY_ROSTER_PREFIX + grade, ""))
+        getRosterEntries(context, grade).map { it.name }
 
-    /** 名單對話框按確定當下就存檔（不等「儲存設定」），避免切年級時草稿遺失。 */
-    fun saveRoster(context: Context, grade: String, raw: String) {
+    /** 名單編輯按確定／儲存當下就存檔（不等「儲存設定」），避免切年級時草稿遺失。 */
+    fun saveRosterEntries(context: Context, grade: String, entries: List<RosterEntry>) {
+        val cleaned = entries
+            .map { RosterEntry(it.number.trim(), it.name.trim()) }
+            .filter { it.name.isNotEmpty() }
+            .take(ROSTER_MAX_SIZE)
         prefs(context).edit()
-            .putString(KEY_ROSTER_PREFIX + grade, serializeRoster(parseRoster(raw)))
+            .putString(KEY_ROSTER_PREFIX + grade, serializeRosterEntries(cleaned))
             .apply()
     }
 

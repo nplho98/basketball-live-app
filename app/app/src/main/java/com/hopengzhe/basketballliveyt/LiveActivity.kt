@@ -601,6 +601,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     // v0.19.0：球員名單——本場套用的年級與該年級名單（設定頁存，onStart 重讀）
     private var rosterGrade: String = StreamPrefs.DEFAULT_ROSTER_GRADE
     private var roster: List<String> = emptyList()
+    // v0.22.11：含背號的完整名單。roster 仍是純姓名（統計、選人視窗、分享文字都只認姓名），
+    // 這份只有球員數據表的號碼欄與名單編輯會用到。
+    private var rosterEntries: List<StreamPrefs.RosterEntry> = emptyList()
 
     // v0.19.4：目前開著的得分者選擇視窗。下一次主隊加分會直接把它關掉，
     // 那筆標記就維持加分當下寫入的「主隊名N號：X分」（＝舊版按「取消」的結果）。
@@ -851,6 +854,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.16.0：功能三——還原上次各節結算分數（閃退／重開恢復，見 StreamPrefs）
         quarterScoresHome = StreamPrefs.getQuarterScoresHome(this)
         quarterScoresAway = StreamPrefs.getQuarterScoresAway(this)
+        restoreLastSession()
         // v0.15.1：上一場若因當機/被殺沒收播，補送 YouTube 結束指令（見 endOrphanBroadcastIfAny）
         endOrphanBroadcastIfAny()
 
@@ -1256,6 +1260,29 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             .show()
     }
 
+    /**
+     * v0.22.1：關掉 APP 再開，接回上一場的球員數據、精彩標記與計分板現值（Boss 2026-09-06 拍板
+     * 「一律接回」，不看隔了多久）。
+     *
+     * 為什麼不必判斷新舊：**開播一律重置計分板**，下次比賽一開播就換新時間戳並全部歸零，
+     * 舊數字不可能混進新的一場。隔三天才開 APP 看到舊數字，只是還沒開播而已。
+     *
+     * [quarterScoresHome]/[quarterScoresAway] 從 v0.16.0 起就會還原，但總分／犯規／節數不會——
+     * 只接回統計卻是 0-0，收播圖會出現「各節有分、總分 0」的矛盾，所以這裡一起接。
+     */
+    private fun restoreLastSession() {
+        val stamp = StreamPrefs.getLastSessionStamp(this) ?: return
+        highlightSessionTimestamp = stamp
+        highlightMarkers.addAll(HighlightStore.load(this, stamp))
+        playerStatBook = PlayerStatStore.load(this, stamp)
+        val board = StreamPrefs.getScoreboardState(this)
+        scoreHome = board.scoreHome
+        scoreAway = board.scoreAway
+        foulHome = board.foulHome
+        foulAway = board.foulAway
+        period = board.period.coerceIn(1, StreamPrefs.PERIOD_SLOT_COUNT)
+    }
+
     /** 開播前重置計分板：兩隊分數與犯規歸零、節數回第 1 節，並重繪燒入濾鏡。 */
     private fun resetScoreboardForNewGame() {
         scoreHome = 0
@@ -1553,6 +1580,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         playerStatBook = PlayerStatBook()
         playerStatsDialog?.dismiss()
         highlightSessionTimestamp = HighlightStore.newSessionTimestamp()
+        // v0.22.1：存起來，關掉 APP 再開才接得回這一場（見 restoreLastSession）
+        StreamPrefs.saveLastSessionStamp(this, highlightSessionTimestamp)
         liveStartElapsedMs = SystemClock.elapsedRealtime()
         // v0.10.1：直播中才顯示實際/設定碼率，第一筆數字等 onNewBitrate 回報後更新
         // v0.18.12（v1.7）：改走 renderBitrateStatusText 統一渲染，避免格式與模式標籤各寫一份
@@ -2637,6 +2666,12 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * 改回直接使用 [buildScoreboardOverlayBitmap] 產出的原始尺寸 Bitmap。
      */
     private fun refreshScoreboardOverlay() {
+        // v0.22.1：計分板只在這裡重繪，所有變動路徑（加減分／犯規／節數／重置）都會經過，
+        // 存檔掛在這裡就不必每個路徑各補一行。放在早退之前——預覽還沒起來時也要存得到。
+        StreamPrefs.saveScoreboardState(
+            this,
+            StreamPrefs.ScoreboardState(scoreHome, scoreAway, foulHome, foulAway, period)
+        )
         if (streamWidthForOverlay <= 0 || streamHeightForOverlay <= 0) return
         scoreboardOverlayFilter.setImage(buildScoreboardOverlayBitmap())
         // v0.18.46：休息畫面不含牛；眨眼 14 格只更新計分板時，不再反覆配置與上傳 1080p Bitmap。
@@ -3565,12 +3600,13 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     /** v0.19.0：重讀設定頁存的本場年級與該年級名單，並更新左上角小字。onCreate／onStart 共用。 */
     private fun reloadRoster() {
         rosterGrade = StreamPrefs.getActiveRosterGrade(this)
-        roster = StreamPrefs.getRoster(this, rosterGrade)
+        rosterEntries = StreamPrefs.getRosterEntries(this, rosterGrade)
+        roster = rosterEntries.map { it.name }
         binding.tvRosterGrade.text = getString(R.string.live_roster_grade_format, rosterGrade)
     }
 
     /**
-     * v0.19.0：得分者選擇——主隊加分後跳出本場年級的姓名大按鈕（6 欄 2 列），點下即關並把
+     * v0.19.0：得分者選擇——主隊加分後跳出本場年級的姓名大按鈕（固定 2 列），點下即關並把
      * [marker] 的說明文字改成「王小明：2分」。
      *
      * v0.19.5：客隊加分也會關掉這個視窗（客隊照舊不記標記），行為與再按一次主隊加分相同。
@@ -3626,8 +3662,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             setOnClickListener { onClick() }
         }
 
+        // v0.22.1：固定排兩列（Boss 指定），欄數由人數推——15 人＝8 欄。列數愈少，
+        // 選人時遮住的直播畫面愈少；欄數不寫死才不會人少時留一排空格。
+        val columns = ((roster.size + 1) / 2).coerceAtLeast(1)
         // ponytail: 巢狀 LinearLayout 排格子，不用 GridLayout 也不用 RecyclerView
-        roster.chunked(SCORER_PICKER_COLUMNS).forEach { rowNames ->
+        roster.chunked(columns).forEach { rowNames ->
             val row = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.HORIZONTAL
             }
@@ -3647,7 +3686,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                 )
             }
             // 最後一列人數不足時補空白佔位，按鈕寬度才會跟其他列一致
-            repeat(SCORER_PICKER_COLUMNS - rowNames.size) {
+            repeat(columns - rowNames.size) {
                 row.addView(
                     android.view.View(this),
                     android.widget.LinearLayout.LayoutParams(0, buttonHeightPx, 1f)
@@ -3665,6 +3704,12 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                 android.view.WindowManager.LayoutParams.MATCH_PARENT,
                 android.view.WindowManager.LayoutParams.WRAP_CONTENT
             )
+            // v0.22.1：靠上不置中（Boss 指定）——置中時視窗下緣會壓到右下「休息畫面」與
+            // 左下「移除標記」。貼齊頂端後往下只吃掉兩列高度，底部整排控制鈕都露得出來。
+            // v0.22.9：往下讓開最上面那排狀態字（碼率／名單／溫度／版本），
+            // 兩列高度約 132dp，讓 80dp 後下緣約 212dp，離底部控制鈕還有一大段。
+            setGravity(android.view.Gravity.TOP)
+            attributes = attributes.apply { y = (SCORER_PICKER_TOP_MARGIN_DP * density).toInt() }
             setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             setDimAmount(0f)
             // v0.19.4：視窗以外的觸控穿透到底下的 Activity，選人視窗開著時計分鈕仍按得到
@@ -3801,9 +3846,60 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     }
 
     /**
-     * 球員數據視窗（右側欄入口，**直播中可用**）：名單 12 人全部列出（掛零也列），
-     * 四項每格短按 +1、長按 −1；得分欄唯讀（來自精彩標記，Boss 拍板賽後人工改）。
+     * v0.22.10：進出名單編輯模式時切換球員數據視窗的視窗設定。
+     *
+     * 為什麼要動視窗：v0.22.9 的 log 給了決定性證據——`focused=true windowFocus=true` 但
+     * `imm.isActive(view)=false`，代表輸入法從頭到尾沒綁上那格，不是「鍵盤被叫了但沒顯示」。
+     * 這個視窗與設定頁那個叫得出注音的名單視窗，唯一差別就是這裡用 [setLayout] 拉成滿版；
+     * 滿版的浮動視窗在這支機器上不被當成可接受輸入法的視窗。
+     *
+     * 所以編輯時縮回 WRAP_CONTENT（結構等同設定頁那個），並直接要求系統顯示鍵盤；
+     * 離開編輯模式再拉回滿版，球員表才看得到 15 列。
+     */
+    private fun applyRosterEditWindowMode(editing: Boolean) {
+        val window = playerStatsDialog?.window ?: return
+        window.clearFlags(
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+        )
+        window.setSoftInputMode(
+            if (editing) {
+                WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            } else {
+                WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED or
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
+            }
+        )
+        window.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            if (editing) WindowManager.LayoutParams.WRAP_CONTENT
+            else WindowManager.LayoutParams.MATCH_PARENT
+        )
+    }
+
+    /**
+     * v0.22.7：對話框裡的輸入格點下去不一定會自己叫出軟鍵盤，這裡主動要一次。
+     *
+     * v0.22.9：加上診斷輸出。設定頁那個名單編輯器（同樣是 AlertDialog＋程式建的 EditText）
+     * 叫得出注音，這裡叫不出來，差別只在視窗設定，看 log 判斷是拿不到焦點還是 IME 拒絕。
+     */
+    private fun showSoftKeyboardFor(view: View) {
+        view.requestFocus()
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        // 視窗剛換過尺寸時輸入法可能還綁在舊的 view 上，先要求重綁再叫鍵盤
+        imm.restartInput(view)
+        imm.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    /**
+     * 球員數據視窗（右側欄入口，**直播中可用**）：名單 15 人全部列出（掛零也列），
+     * 五項每格短按 +1、長按 −1；得分欄唯讀（來自精彩標記，Boss 拍板賽後人工改）。
      * 視窗內另含年級切換與編輯名單——直播中系統設定是鎖住的，比賽中要改只能從這裡改。
+     *
+     * v0.22.4：編輯名單改成**原地編輯**（Boss 2026-09-06）——按「編輯名單」後，這張表的
+     * 姓名欄直接變成輸入格，那顆鈕同時變成「儲存名單」。原本另開一個對話框的做法，
+     * 橫式螢幕一次只看得到四五行，15 位有一半在捲軸外。
      *
      * ponytail: 程式化建構表格（比照 [showHighlightListDialog]／[showPlayerPickerDialog]），
      * 不新增 layout 檔、不用 RecyclerView；每格用短按／長按取代 [+][−] 兩顆鈕，橫式寬度才夠。
@@ -3814,11 +3910,33 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         playerStatsDialog?.dismiss()
         val density = resources.displayMetrics.density
         val paddingPx = (12 * density).toInt()
+        // v0.22.6：兩段式——功能鈕與欄名（球員／得分／籃板…）放在 ScrollView 外面固定住，
+        // 只有球員列會捲。原本整份一起捲，往下看第 10 位時欄名已經捲出畫面，
+        // 三個 0 分不出是哪一項（Boss 2026-09-06 實機回報）。
+        val headerBox = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(paddingPx, paddingPx, paddingPx, 0)
+        }
         val container = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+            setPadding(paddingPx, 0, paddingPx, paddingPx)
         }
-        val scrollView = android.widget.ScrollView(this).apply { addView(container) }
+        val outerBox = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            addView(
+                headerBox,
+                android.widget.LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+            // weight 1＝剩下的高度全給捲動區，欄名固定貼在它上面
+            addView(
+                android.widget.ScrollView(this@LiveActivity).apply { addView(container) },
+                android.widget.LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+                )
+            )
+        }
 
         fun textCell(text: String, weight: Float, bold: Boolean = false) =
             android.widget.TextView(this).apply {
@@ -3855,45 +3973,124 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             setPadding(0, (1 * density).toInt(), 0, (1 * density).toInt())
         }
 
+        // v0.22.4：名單原地編輯。true＝姓名欄變輸入格、那顆鈕顯示「儲存名單」。
+        // nameFields 每次 rebuild 重建，按儲存時才把 15 格讀出來交給 parseRoster（空格會被丟掉）。
+        var rosterEditMode = false
+
+        /**
+         * v0.22.12：編輯姓名時其他鈕一律反灰停用（Boss 指定）。改到一半按到「切換年級」會
+         * 整份草稿換掉，按到「清空數據」更慘——編輯中唯一該按得動的就是「儲存姓名」。
+         */
+        fun lockWhileEditing(button: android.widget.Button) = button.apply {
+            if (rosterEditMode) {
+                isEnabled = false
+                alpha = LIVE_LOCKED_BUTTON_ALPHA
+            }
+        }
+
+        val numberFields = mutableListOf<android.widget.EditText>()
+        val nameFields = mutableListOf<android.widget.EditText>()
+
+        fun rosterField(
+            initial: String,
+            hintText: String,
+            weight: Float,
+            numeric: Boolean
+        ) = android.widget.EditText(this).apply {
+            setText(initial)
+            hint = hintText
+            gravity = android.view.Gravity.CENTER
+            setSingleLine(true)
+            // 程式建的 EditText 沒設 inputType 時是 TYPE_NULL，系統當成「不收 IME 輸入」，
+            // 點下去只有游標不跳鍵盤（Boss 2026-09-06 實機回報）。必須明寫成文字型。
+            inputType =
+                if (numeric) android.text.InputType.TYPE_CLASS_NUMBER
+                else android.text.InputType.TYPE_CLASS_TEXT
+            textSize = PLAYER_STATS_TEXT_SP
+            setTextColor(getColor(R.color.white))
+            // 換掉預設的底線圖（那張 9-patch 自帶內距，被這裡的零內距壓扁後會蓋在字上），
+            // 改用數據格同一張圓角深底，順便跟表格其他欄長得一樣
+            background = androidx.core.content.ContextCompat.getDrawable(
+                this@LiveActivity, R.drawable.bg_round_button_dark
+            )
+            backgroundTintList = null
+            setPadding((4 * density).toInt(), (2 * density).toInt(), (4 * density).toInt(), (2 * density).toInt())
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
+            // v0.22.7：點下去主動叫鍵盤。橫式全螢幕的對話框裡，點選只拿到焦點、IME 不一定會自己起來
+            // （Boss 實機兩次都跳不出注音）。這裡不再用 IME_FLAG_NO_EXTRACT_UI——
+            // 那個旗標在這支機器的注音鍵盤上會讓鍵盤整個不出現。
+            setOnFocusChangeListener { view, hasFocus ->
+                if (hasFocus) view.post { showSoftKeyboardFor(view) }
+            }
+            setOnClickListener { view -> showSoftKeyboardFor(view) }
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, weight
+            )
+        }
+
         lateinit var rebuild: () -> Unit
-        rebuild = {
+        // 指派給變數的 lambda 沒有隱含標籤，編輯模式要早退就得自己標一個
+        rebuild = body@{
             container.removeAllViews()
+            headerBox.removeAllViews()
+            numberFields.clear()
+            nameFields.clear()
 
-            container.addView(android.widget.TextView(this).apply {
-                text = getString(R.string.player_stats_title, rosterGrade)
-                setTextColor(getColor(R.color.white))
-                textSize = PLAYER_STATS_TEXT_SP + 3f
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-            })
-
-            container.addView(statsRow().apply {
+            // v0.22.1：標題移除——「年級：七年級」那顆鈕已經寫著同一件事，整組往上讓球員列多露幾行
+            headerBox.addView(statsRow().apply {
                 // 三個年級輪流切；saveActiveRosterGrade 只寫偏好，同一個 Activity 開關對話框
                 // 不會觸發 onStart 重讀，所以這裡切完要立刻 reloadRoster
-                addView(panelButton(getString(R.string.player_stats_grade_button, rosterGrade)) {
+                addView(lockWhileEditing(panelButton(getString(R.string.player_stats_grade_button, rosterGrade)) {
                     val grades = StreamPrefs.ROSTER_GRADES
                     val next = grades[(grades.indexOf(rosterGrade) + 1) % grades.size]
                     StreamPrefs.saveActiveRosterGrade(this@LiveActivity, next)
                     reloadRoster()
                     rebuild()
-                })
-                addView(panelButton(getString(R.string.player_stats_edit_roster_button)) {
-                    showRosterEditDialog { rebuild() }
+                }))
+                // v0.22.4：同一顆鈕切換「編輯名單／儲存名單」，姓名欄就地變輸入格
+                val rosterButtonLabel =
+                    if (rosterEditMode) R.string.player_stats_save_roster_button
+                    else R.string.player_stats_edit_roster_button
+                addView(panelButton(getString(rosterButtonLabel)) {
+                    if (rosterEditMode) {
+                        StreamPrefs.saveRosterEntries(
+                            this@LiveActivity,
+                            rosterGrade,
+                            nameFields.indices.map { i ->
+                                StreamPrefs.RosterEntry(
+                                    numberFields[i].text.toString(),
+                                    nameFields[i].text.toString()
+                                )
+                            }
+                        )
+                        reloadRoster()
+                        rosterEditMode = false
+                        Toast.makeText(
+                            this@LiveActivity,
+                            getString(R.string.settings_roster_saved_toast, rosterGrade, roster.size),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        rosterEditMode = true
+                    }
+                    rebuild()
+                    applyRosterEditWindowMode(rosterEditMode)
                 })
                 // v0.21.0：計分板上的賽事名稱與球員名單年級是兩套資料（一個是手打文字、一個是名單設定），
                 // 切年級不會動到它；直播中系統設定又是鎖的，所以編輯入口也放這裡（Boss 指定）
-                addView(panelButton(getString(R.string.player_stats_edit_event_button)) {
+                addView(lockWhileEditing(panelButton(getString(R.string.player_stats_edit_event_button)) {
                     showEventNameEditDialog()
-                })
+                }))
             })
 
             // v0.22.0：第二排功能鈕。做進內容區而不是對話框按鈕列——AlertDialog 最多三顆按鈕，
             // 加上「關閉」就滿了，四顆放不下。
-            container.addView(statsRow().apply {
-                addView(panelButton(getString(R.string.game_summary_export_button)) {
+            headerBox.addView(statsRow().apply {
+                addView(lockWhileEditing(panelButton(getString(R.string.game_summary_export_button)) {
                     exportGameSummaryImage()
-                })
+                }))
                 // 直播中停用：清空會把燒進畫面的比分一起歸零，比賽進行中按下去等於毀掉這場
-                addView(panelButton(getString(R.string.player_stats_clear_button)) {
+                addView(lockWhileEditing(panelButton(getString(R.string.player_stats_clear_button)) {
                     if (isLive) {
                         Toast.makeText(
                             this@LiveActivity,
@@ -3903,9 +4100,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                     } else {
                         showClearPlayerStatsConfirmDialog { rebuild() }
                     }
-                }.apply { alpha = if (isLive) LIVE_LOCKED_BUTTON_ALPHA else 1f })
+                }.apply { alpha = if (isLive) LIVE_LOCKED_BUTTON_ALPHA else 1f }))
                 // 直播中不可用：切到 LINE 會把 APP 推到背景，等於拿直播冒險（Boss 指定）
-                addView(panelButton(getString(R.string.player_stats_share_line_button)) {
+                addView(lockWhileEditing(panelButton(getString(R.string.player_stats_share_line_button)) {
                     if (isLive) {
                         Toast.makeText(
                             this@LiveActivity,
@@ -3915,15 +4112,35 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                     } else {
                         sharePlayerStatsToLine()
                     }
-                }.apply { alpha = if (isLive) LIVE_LOCKED_BUTTON_ALPHA else 1f })
+                }.apply { alpha = if (isLive) LIVE_LOCKED_BUTTON_ALPHA else 1f }))
             })
 
-            container.addView(android.widget.TextView(this).apply {
-                text = getString(R.string.player_stats_hint)
-                setTextColor(getColor(R.color.text_secondary))
-                textSize = PLAYER_STATS_TEXT_SP - 1f
-            })
+            // v0.22.4：編輯模式——同一張表的姓名欄變成 15 個輸入格，數據欄留白（正在改的是名字，
+            // 空格還沒有人，擺一排 0 只是噪音）。看得到全部 15 位，要改誰點誰。
+            if (rosterEditMode) {
+                // v0.22.7：只畫「現有人數＋1 個空格」，不再固定畫滿 15 格——名單 12 人卻看到
+                // 15 行會讓人以為名單變成 15 人（Boss 實機回報）。那一個空格是拿來加人的，
+                // 存檔後又會補一個新的空格出來，上限仍是 ROSTER_MAX_SIZE。
+                val slotCount = (roster.size + 1).coerceAtMost(StreamPrefs.ROSTER_MAX_SIZE)
+                for (index in 0 until slotCount) {
+                    val entry = rosterEntries.getOrNull(index)
+                    val numberBox = rosterField(entry?.number ?: "", "#", 1f, numeric = true)
+                    val nameBox = rosterField(
+                        entry?.name ?: "", (index + 1).toString(), 2f, numeric = false
+                    )
+                    numberFields.add(numberBox)
+                    nameFields.add(nameBox)
+                    container.addView(statsRow().apply {
+                        addView(numberBox)
+                        addView(nameBox)
+                        // 補一格佔掉數據欄的寬度，輸入格才跟非編輯模式的姓名欄對齊
+                        addView(textCell("", 6f))
+                    })
+                }
+                return@body
+            }
 
+            // v0.22.1：短按 +1／長按 −1 的說明移到使用教學（設定頁），這裡騰出來給球員列
             // v0.22.0：名單外的人已不列出，這裡的判空等同「名單為空且沒有未指定得分」
             val statRows = buildPlayerStatRows(roster, summarizeScorers(highlightMarkers), playerStatBook)
             if (statRows.isEmpty()) {
@@ -3933,7 +4150,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                     textSize = PLAYER_STATS_TEXT_SP
                 })
             } else {
-                container.addView(statsRow().apply {
+                // v0.22.6：欄名放固定區，捲球員列時不會跟著捲走
+                headerBox.addView(statsRow().apply {
+                    addView(textCell(getString(R.string.player_stats_header_number), 1f, bold = true))
                     addView(textCell(getString(R.string.player_stats_header_name), 2f, bold = true))
                     addView(textCell(getString(R.string.player_stats_header_points), 1f, bold = true))
                     PlayerStatType.entries.forEach { addView(textCell(statTypeLabel(it), 1f, bold = true)) }
@@ -3942,7 +4161,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                 statRows.forEach { statRow ->
                     val displayName =
                         if (statRow.isUnassigned) getString(R.string.highlight_stats_unassigned) else statRow.name
+                    // 「未指定」不是名單裡的人，沒有背號
+                    val jersey = if (statRow.isUnassigned) "" else
+                        rosterEntries.firstOrNull { it.name == statRow.name }?.number.orEmpty()
                     container.addView(statsRow().apply {
+                        addView(textCell(jersey, 1f))
                         addView(textCell(displayName, 2f))
                         addView(textCell(statRow.points.toString(), 1f))
                         PlayerStatType.entries.forEach { type ->
@@ -3972,10 +4195,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
         rebuild()
 
-        // v0.22.0：輸出圖片／清空／分享 LINE 都改放在內容區的第二排功能鈕，這裡只留關閉
+        // v0.22.1：關閉鈕拿掉，用手機返回鍵關（AlertDialog 預設 cancelable，返回鍵由對話框自己吃掉，
+        // 不會走到 Activity 的關閉直播確認）。少一整條按鈕列＝球員表多一行。
+        // v0.22.0：輸出圖片／清空／分享 LINE 都放在內容區的第二排功能鈕
         val dialog = AlertDialog.Builder(this)
-            .setView(scrollView)
-            .setPositiveButton(getString(R.string.player_stats_close_button), null)
+            .setView(outerBox)
             .create()
         playerStatsDialog = dialog
         dialog.setOnDismissListener { if (playerStatsDialog === dialog) playerStatsDialog = null }
@@ -4024,45 +4248,6 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         dialog.show()
     }
 
-    /**
-     * 名單編輯對話框——輸入方式與設定頁那個相同（一行一位、最多 12 位），差別在改完要立即
-     * [reloadRoster] 並重繪數據表。直播中設定頁是鎖住的，這裡是比賽中唯一能改名單的入口。
-     */
-    private fun showRosterEditDialog(onSaved: () -> Unit) {
-        val paddingPx = (16 * resources.displayMetrics.density).toInt()
-        val editText = android.widget.EditText(this).apply {
-            setText(StreamPrefs.serializeRoster(StreamPrefs.getRoster(this@LiveActivity, rosterGrade)))
-            hint = getString(R.string.settings_roster_edit_hint)
-            gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            minLines = 6
-            maxLines = StreamPrefs.ROSTER_MAX_SIZE
-            setSingleLine(false)
-            setSelection(text.length)
-        }
-        val editContainer = android.widget.FrameLayout(this).apply {
-            setPadding(paddingPx, paddingPx / 2, paddingPx, 0)
-            addView(editText)
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(getString(R.string.settings_roster_edit_title, rosterGrade))
-            .setView(editContainer)
-            .setPositiveButton(getString(R.string.dialog_confirm_button)) { _, _ ->
-                StreamPrefs.saveRoster(this, rosterGrade, editText.text.toString())
-                reloadRoster()
-                Toast.makeText(
-                    this,
-                    getString(R.string.settings_roster_saved_toast, rosterGrade, roster.size),
-                    Toast.LENGTH_SHORT
-                ).show()
-                onSaved()
-            }
-            .setNegativeButton(getString(R.string.dialog_cancel_button), null)
-            .create()
-        // 開著時 Activity 被結束會 WindowLeaked，留參照給 onDestroy 收（Codex 第二輪詰問）
-        rosterEditDialog = dialog
-        dialog.setOnDismissListener { if (rosterEditDialog === dialog) rosterEditDialog = null }
-        dialog.show()
-    }
 
     /**
      * 精彩清單：程式化建構列表（不新增 layout/adapter，比照 [showScorerPickerDialog] 的做法），
@@ -5198,9 +5383,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.19.0：得分者選擇視窗一列幾顆姓名按鈕。直播畫面鎖橫式、螢幕高度吃緊，
         // 12 位排 6 欄 2 列才不會被對話框高度截掉（3 欄 4 列實測會看不到後面幾位）。
         // v0.22.0：名單上限 12→15，6→5 欄（15÷5＝三列剛好排滿，不留空位）。
-        const val SCORER_PICKER_COLUMNS = 5
-        // 名單上限 15（StreamPrefs.ROSTER_MAX_SIZE）÷ 5 欄＝最多 3 列，視窗高度約 198dp、
-        // 垂直置中不會蓋到貼齊底部的計分鈕；改動這兩個數字前要重新確認會不會蓋住
+        // v0.22.1：欄數改由人數推（固定兩列），原本的 5 欄常數不再需要。
+        // 兩列＝視窗高度約 132dp，且靠上排（見 showPlayerPickerDialog），底部控制鈕不會被蓋到。
+        // v0.22.9：選人視窗距離螢幕頂端的距離。要讓開最上面那排狀態字（碼率／名單／溫度／版本），
+        // 又不能太下面壓到底部控制鈕——這排字實測落在 73dp 以內，取 80dp。
+        const val SCORER_PICKER_TOP_MARGIN_DP = 80f
         const val SCORER_PICKER_TEXT_SP = 15f
         // 半透明——選人當下仍看得到後面的直播畫面
         const val SCORER_PICKER_BUTTON_ALPHA = 0.8f
