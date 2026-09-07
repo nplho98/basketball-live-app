@@ -6,6 +6,12 @@
 
     <application>
         <activity
+            android:name=".spike.GestureSpikeActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@style/Theme.BasketballLiveYT" />
+        <activity
             android:name=".spike.Phase0SpikeActivity"
             android:exported="true"
             android:screenOrientation="landscape"

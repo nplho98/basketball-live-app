@@ -11,8 +11,8 @@ android {
         applicationId = "com.hopengzhe.basketballliveyt"
         minSdk = 26
         targetSdk = 35
-        versionCode = 200
-        versionName = "0.22.17"
+        versionCode = 201
+        versionName = "0.23.0"
     }
 
     buildTypes {
@@ -53,6 +53,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.mediapipe:tasks-vision:0.10.14")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")

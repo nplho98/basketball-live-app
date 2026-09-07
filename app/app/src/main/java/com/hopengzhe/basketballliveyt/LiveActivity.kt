@@ -13,6 +13,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ImageFormat
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RectF
@@ -21,6 +22,7 @@ import android.graphics.Typeface
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.media.MediaMetadataRetriever
+import android.media.Image
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.Uri
@@ -61,6 +63,7 @@ import com.hopengzhe.basketballliveyt.databinding.ActivityLiveBinding
 import com.pedro.common.ConnectChecker
 import com.pedro.common.socket.base.SocketType
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
+import com.pedro.encoder.input.video.Camera2ApiManager
 import com.pedro.encoder.utils.gl.TranslateTo
 import com.pedro.library.base.Camera2Base
 import com.pedro.library.base.recording.RecordController
@@ -531,6 +534,8 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     // v0.18.27：左上靜態牛可開關（測試鈕），關掉時 Bitmap 不長高、計分板回到沒有牛的原樣
     // v0.18.31：Boss 指定預設關閉，要看時自己按「左上牛 開/關」（打開時會眨兩下眼）
     private var showScoreboardBull = false
+    private var gestureController: GestureBullController? = null
+    private var gestureListenerAttached = false
 
     // v0.18.30：眨眼五格（睜→微閉→半閉→全閉→回睜，Boss 提供的算圖）。與靜態牛共用同一個
     // 裁切框，所以切格子時牛不會位移；index < 0＝顯示靜態睜眼那張。
@@ -911,6 +916,12 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         }
         if (rtmpCamera2.isStreaming) rtmpCamera2.stopStream()
         if (rtmpCamera2.isOnPreview) rtmpCamera2.stopPreview()
+        if (gestureListenerAttached) {
+            rtmpCamera2.removeImageListener()
+            gestureListenerAttached = false
+        }
+        gestureController?.release()
+        gestureController = null
         // v0.12.0：斷線重連——App 結束時一併收掉還在等待的重連 coroutine 與網路callback，避免洩漏
         reconnectJob?.cancel()
         unregisterNetworkCallbackForReconnect()
@@ -1035,6 +1046,23 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
                 Toast.LENGTH_LONG
             ).show()
             return
+        }
+
+        if (StreamPrefs.isGestureBullEnabled(this) && gestureController == null) {
+            gestureController = GestureBullController(
+                this,
+                StreamPrefs.isGestureRightSide(this)
+            ) { visible -> runOnUiThread { setBullVisible(visible) } }
+            gestureController?.start()
+        }
+        if (gestureController != null && !gestureListenerAttached) {
+            rtmpCamera2.addImageListener(ImageFormat.YUV_420_888, 2,
+                object : Camera2ApiManager.ImageCallback {
+                    override fun onImageAvailable(image: Image) {
+                        gestureController?.onImage(image)
+                    }
+                })
+            gestureListenerAttached = true
         }
 
         // 串流解析度確定後才知道計分板燒入濾鏡該用多大比例繪製，這裡建立並掛上濾鏡。
@@ -2455,22 +2483,25 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.18.16：−1 長按＝該隊分數直接歸零（各節結算一起清掉，因為各節分數是從總分推出來的）。
         // 長按本身就是防誤觸機制，不跳確認框；**直播中一律禁用**（Boss 指定），只有非直播能歸零。
         // v0.18.27：牛測試鈕（驗收用，之後再決定正式觸發時機）
-        binding.btnToggleBull.setOnClickListener {
-            if (bullBusy) return@setOnClickListener
-            showScoreboardBull = !showScoreboardBull
-            bullBlinkFrameIndex = -1
-            refreshScoreboardOverlay()
-            if (showScoreboardBull) playBullBlink()
-            Toast.makeText(
-                this,
-                getString(if (showScoreboardBull) R.string.bull_toggle_toast_on else R.string.bull_toggle_toast_off),
-                Toast.LENGTH_SHORT
-            ).show()
-        }
+        binding.btnToggleBull.setOnClickListener { setBullVisible(!showScoreboardBull) }
 
         binding.btnHomeMinus1.setOnLongClickListener { resetTeamScore(isHome = true); true }
         binding.btnAwayMinus1.setOnLongClickListener { resetTeamScore(isHome = false); true }
 
+    }
+
+    /** 左上牛的唯一狀態入口；按鈕與手勢共用既有重繪、眨眼與提示行為。 */
+    private fun setBullVisible(visible: Boolean) {
+        if (bullBusy || showScoreboardBull == visible) return
+        showScoreboardBull = visible
+        bullBlinkFrameIndex = -1
+        refreshScoreboardOverlay()
+        if (showScoreboardBull) playBullBlink()
+        Toast.makeText(
+            this,
+            getString(if (showScoreboardBull) R.string.bull_toggle_toast_on else R.string.bull_toggle_toast_off),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun resetTeamScore(isHome: Boolean) {

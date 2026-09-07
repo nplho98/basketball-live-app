@@ -82,6 +82,11 @@ class SettingsActivity : AppCompatActivity() {
                 recordResolution = StreamPrefs.RECORD_RESOLUTION_FIXED_1080P30,
                 recordSaveMode = StreamPrefs.RECORD_SAVE_MODE_DOWNLOADS
             )
+            StreamPrefs.saveGestureSettings(
+                this,
+                binding.switchGestureBullEnabled.isChecked,
+                binding.switchGestureRightSide.isChecked
+            )
             // v0.9.17：兩欄合併存成「第一行\n第二行」；第二行空白就只存第一行，
             // 第一行空白視同整個賽事名稱留空（第二行單獨有字也不顯示，避免燒入端出現孤行）
             val line1 = binding.etEventNameLine1.text.toString().trim()
@@ -250,6 +255,8 @@ class SettingsActivity : AppCompatActivity() {
         setSpinnerSelection(binding.spinnerBitrate, R.array.bitrate_options, StreamPrefs.getBitrate(this))
         // v0.10.0：同步錄影備份
         binding.switchRecordEnabled.isChecked = StreamPrefs.isRecordEnabled(this)
+        binding.switchGestureBullEnabled.isChecked = StreamPrefs.isGestureBullEnabled(this)
+        binding.switchGestureRightSide.isChecked = StreamPrefs.isGestureRightSide(this)
         setSpinnerSelection(
             binding.spinnerRecordResolution, R.array.record_resolution_options, StreamPrefs.getRecordResolution(this)
         )

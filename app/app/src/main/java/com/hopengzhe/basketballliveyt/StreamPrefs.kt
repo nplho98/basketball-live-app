@@ -87,6 +87,8 @@ object StreamPrefs {
     private const val KEY_RECORD_RESOLUTION = "record_resolution"
     private const val KEY_RECORD_SAVE_MODE = "record_save_mode"
     private const val KEY_RECORD_TREE_URI = "record_tree_uri"
+    private const val KEY_GESTURE_BULL_ENABLED = "gesture_bull_enabled"
+    private const val KEY_GESTURE_RIGHT_SIDE = "gesture_right_side"
 
     // 預設值需與 strings.xml 內對應 string-array 的項目文字完全一致，
     // 才能在設定頁還原上次選擇的 Spinner 選項。
@@ -449,6 +451,19 @@ object StreamPrefs {
 
     fun saveRecordTreeUri(context: Context, treeUri: String) {
         prefs(context).edit().putString(KEY_RECORD_TREE_URI, treeUri).apply()
+    }
+
+    fun isGestureBullEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_GESTURE_BULL_ENABLED, false)
+
+    fun isGestureRightSide(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_GESTURE_RIGHT_SIDE, false)
+
+    fun saveGestureSettings(context: Context, enabled: Boolean, rightSide: Boolean) {
+        prefs(context).edit()
+            .putBoolean(KEY_GESTURE_BULL_ENABLED, enabled)
+            .putBoolean(KEY_GESTURE_RIGHT_SIDE, rightSide)
+            .apply()
     }
 
     // ---------- v0.13.0：功能 A 精彩時刻標記——標記回推秒數 ----------

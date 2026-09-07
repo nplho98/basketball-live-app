@@ -296,6 +296,11 @@
     <string name="settings_record_folder_cancelled_use_gallery_toast">已取消選擇資料夾，改用相簿</string>
     <string name="settings_record_folder_cancelled_keep_previous_toast">已取消選擇資料夾，沿用先前選擇</string>
 
+    <string name="settings_gesture_section_title">手勢控制</string>
+    <string name="settings_gesture_enabled_label">手勢控制牛頭</string>
+    <string name="settings_gesture_right_side_label">手伸入右側（關閉＝左側）</string>
+    <string name="settings_gesture_note">開播前才會生效；需要整隻手完整進入畫面邊緣。</string>
+
     <!-- v0.13.0：功能 A 精彩時刻標記——設定頁欄位 -->
     <string name="settings_highlight_rebound_seconds_label">標記回推秒數（主隊加分記錄「目前時間－此秒數」）</string>
 
