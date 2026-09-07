@@ -125,10 +125,13 @@ fun padName(name: String, width: Int): String =
 
 /**
  * 球員數據表：**目前名單全部列出（整場掛零也列，Boss 指定）**，得分的「未指定」固定最後一列。
- * 排序三層（Boss 2026-09-06）：
- * 1. 得分高到低
- * 2. 得分相同時，**有任何記錄的排前面、六項全零的沉到最底**（只有失誤也算有記錄）
- * 3. 同一組維持名單順序（`sortedWith` 是穩定排序）
+ *
+ * v0.22.16：**同一場比賽兩種順序**（Boss 2026-09-07 指定），由 [sortByScore] 切換：
+ * - `false`（球員數據視窗）＝照傳進來的 [roster] 順序，也就是背號小到大。比賽中要「找人按 +1」，
+ *   位置一跳就找不到人，所以誰得幾分都不能讓它重排。背號排序在呼叫端
+ *   `LiveActivity.reloadRoster()` 做——背號在名單設定裡，這支檔案刻意不碰 Android，拿不到。
+ * - `true`（分享 LINE／輸出賽果圖）＝成績單，得分高到低；六項全零（沒上場）的沉到最底；
+ *   同分又都有記錄時維持背號順序（`sortedWith` 是穩定排序，進來已是背號序）。
  *
  * v0.22.0：**移除「名單外」段**（Boss 2026-09-06 指定，球員數據視窗／分享 LINE／輸出圖片三處一致）。
  * 代價是直播中切年級後，前一批球員的數據不再顯示（存檔仍留著）；
@@ -137,7 +140,8 @@ fun padName(name: String, width: Int): String =
 fun buildPlayerStatRows(
     roster: List<String>,
     scorerTotals: List<ScorerTotal>,
-    book: PlayerStatBook
+    book: PlayerStatBook,
+    sortByScore: Boolean = false
 ): List<PlayerStatRow> {
     val pointsOf = scorerTotals.associate { it.scorer to it.points }
     fun rowOf(name: String) = PlayerStatRow(
@@ -150,11 +154,11 @@ fun buildPlayerStatRows(
         turnover = book.get(name, PlayerStatType.TURNOVER)
     )
 
-    val inRoster = roster.map { rowOf(it) }
-        .sortedWith(
-            compareByDescending<PlayerStatRow> { it.points }
-                .thenByDescending { it.hasAnyRecord() }
-        )
+    val rows = roster.map { rowOf(it) }
+    val inRoster = if (!sortByScore) rows else rows.sortedWith(
+        compareByDescending<PlayerStatRow> { it.points }
+            .thenByDescending { it.hasAnyRecord() }
+    )
     val unassigned = pointsOf[""]?.takeIf { it > 0 }
         ?.let { listOf(PlayerStatRow("", it, 0, 0, 0, 0, 0, isUnassigned = true)) }
         ?: emptyList()

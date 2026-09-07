@@ -361,6 +361,8 @@
     <string name="stat_locked_not_live_message">開播後才能記錄球員數據</string>
     <string name="stat_roster_empty_message">尚未設定球員名單，請先按「球員數據」編輯名單</string>
     <string name="stat_recorded_toast">%1$s %2$s +1</string>
+    <!-- v0.22.16：選人視窗標題，標示這次選的人要記哪一項 -->
+    <string name="player_picker_title_format">%1$s：選擇球員</string>
     <string name="player_stats_button">球員數據</string>
     <!-- v0.22.11：球員背號欄（Boss 2026-09-06） -->
     <string name="player_stats_header_number">號碼</string>

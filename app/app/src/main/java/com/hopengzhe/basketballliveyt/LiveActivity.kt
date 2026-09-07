@@ -3601,7 +3601,10 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun reloadRoster() {
         rosterGrade = StreamPrefs.getActiveRosterGrade(this)
         rosterEntries = StreamPrefs.getRosterEntries(this, rosterGrade)
-        roster = rosterEntries.map { it.name }
+        // v0.22.16：從上到下依背號小到大（Boss 指定）。沒填背號的排最後，彼此維持名單順序
+        // （sortedBy 是穩定排序）。排的是 roster 不是 rosterEntries——編輯名單那張表仍照存檔順序列，
+        // 改到一半不會因為打了背號就整排跳位。
+        roster = rosterEntries.sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }.map { it.name }
         binding.tvRosterGrade.text = getString(R.string.live_roster_grade_format, rosterGrade)
     }
 
@@ -3621,19 +3624,29 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * 名單為空時呼叫端就不會叫到這裡。[selectionDone] 只擋同一個視窗內的重複點擊（快速雙擊）。
      */
     private fun showScorerPickerDialog(marker: HighlightMarker, delta: Int) =
-        showPlayerPickerDialog { name -> applyScorerToMarker(marker, name, delta) }
+        showPlayerPickerDialog(
+            getString(
+                R.string.player_picker_title_format,
+                getString(R.string.player_stats_header_points)
+            )
+        ) { name -> applyScorerToMarker(marker, name, delta) }
 
     /**
      * v0.20.0：選人視窗本體抽成共用——得分（[showScorerPickerDialog]）與四項球員數據
      * （[onStatButtonClick]）共用同一份排版與**同一個 [scorerPickerDialog] 參照**。
      * 共用參照是刻意的：收播／進休息畫面／按計分鈕／onDestroy 既有的關窗路徑才會一併關到這個視窗，
      * 不必為新功能各補一條（Codex 詰問指出，見開發方案 v1.1 第 3.2b 節）。
+     *
+     * v0.22.16：最上面加一列標題 [title]。得分與五顆數據鈕（籃板／助攻／火鍋／抄截／失誤）
+     * 共用這同一個視窗，畫面上又只有一片姓名按鈕，不標示就分不出這次選的人要記到哪一項。
      */
-    private fun showPlayerPickerDialog(onPick: (String) -> Unit) {
+    private fun showPlayerPickerDialog(title: String, onPick: (String) -> Unit) {
         // 上一球還沒選人就又進球了：關掉舊視窗，那筆就停在「主隊名N號：X分」
         scorerPickerDialog?.dismiss()
         val density = resources.displayMetrics.density
-        val paddingPx = (12 * density).toInt()
+        // v0.22.17：內距 12dp 收到 6dp——多了標題列之後視窗變高，這 12dp 是純空白，
+        // 省下來直接少壓住底部「移除標記」12dp
+        val paddingPx = (6 * density).toInt()
         val buttonHeightPx = (48 * density).toInt()
         val gapPx = (6 * density).toInt()
         val container = android.widget.LinearLayout(this).apply {
@@ -3661,6 +3674,27 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             alpha = SCORER_PICKER_BUTTON_ALPHA
             setOnClickListener { onClick() }
         }
+
+        // v0.22.16：標題列。直播畫面是透明背景，沒有深色底就會被後面的畫面吃掉，
+        // 因此沿用姓名按鈕的圓角深底；高度只給 32dp，多這一列才不會把視窗撐到壓住底部控制鈕。
+        container.addView(
+            android.widget.TextView(this).apply {
+                text = title
+                gravity = android.view.Gravity.CENTER
+                maxLines = 1
+                textSize = SCORER_PICKER_TEXT_SP
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(getColor(R.color.white))
+                background = androidx.core.content.ContextCompat.getDrawable(
+                    this@LiveActivity, R.drawable.bg_round_button_dark
+                )
+                alpha = SCORER_PICKER_BUTTON_ALPHA
+            },
+            android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                (SCORER_PICKER_TITLE_HEIGHT_DP * density).toInt()
+            ).apply { setMargins(gapPx / 2, gapPx / 2, gapPx / 2, gapPx / 2) }
+        )
 
         // v0.22.1：固定排兩列（Boss 指定），欄數由人數推——15 人＝8 欄。列數愈少，
         // 選人時遮住的直播畫面愈少；欄數不寫死才不會人少時留一排空格。
@@ -3764,7 +3798,9 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             Toast.makeText(this, getString(R.string.stat_roster_empty_message), Toast.LENGTH_SHORT).show()
             return
         }
-        showPlayerPickerDialog { name ->
+        showPlayerPickerDialog(
+            getString(R.string.player_picker_title_format, statTypeLabel(type))
+        ) { name ->
             playerStatBook.add(name, type, 1)
             persistPlayerStats()
             Toast.makeText(
@@ -4346,7 +4382,11 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
      * 得分的「未指定」仍固定最後一列。
      */
     private fun buildScorerSummaryText(): String {
-        val rows = buildPlayerStatRows(roster, summarizeScorers(highlightMarkers), playerStatBook)
+        // v0.22.16：分享 LINE 跟賽果圖一樣是成績單，得分高到低（Boss 指定）；
+        // 只有球員數據視窗維持背號順序，那張是比賽中操作用的
+        val rows = buildPlayerStatRows(
+            roster, summarizeScorers(highlightMarkers), playerStatBook, sortByScore = true
+        )
         if (rows.isEmpty()) return ""
         // v0.21.0：姓名補到本場最長的寬度、數字改全形補位，貼到 LINE 才會上下對齊
         val nameWidth = rows.maxOf {
@@ -5022,7 +5062,17 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         )
     }
 
-    /** 標題：頂緣金飾線從中間斷開，賽事名稱第一列嵌進缺口（重用休息畫面那支）。 */
+    /**
+     * 賽果圖專用標題＝賽事名稱第一行＋球員數據視窗目前切到的年級，例如「2026 中正盃 (七年級)」。
+     * 年級直接取 [rosterGrade]，跟那顆切換鈕顯示的是同一個值，不會出現圖上與視窗上不一致。
+     * 休息畫面仍只顯示賽事名稱第一行，不加年級。
+     */
+    private fun summaryEventTitle(): String {
+        val title = breakEventTitle()
+        return if (title.isEmpty()) title else "$title ($rosterGrade)"
+    }
+
+    /** 標題：頂緣金飾線從中間斷開，賽事名稱第一列與年級嵌進缺口。 */
     private fun drawSummaryTitle(canvas: Canvas, panel: RectF, k: Float, qzoneHeight: Float) {
         // 以上半區高度的比例定位，換算倍率或區塊高度改變時整組會一起跟著移動
         val accentY = panel.top + qzoneHeight * TITLE_ACCENT_RATIO
@@ -5039,7 +5089,7 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
             )
             strokeWidth = 3f * k
         }
-        val title = breakEventTitle()
+        val title = summaryEventTitle()
         if (title.isEmpty()) {
             canvas.drawLine(accentLeft, accentY, accentRight, accentY, accentPaint)
         } else {
@@ -5163,8 +5213,10 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
     private fun drawSummaryPlayerTable(canvas: Canvas, panel: RectF, k: Float, playerTop: Float) {
         // v0.22.0：賽果圖不畫「未指定」那一列（Boss 2026-09-06）——整列都是「–」很難看，
         // 未指定的得分仍算在頂端總計裡。球員數據視窗與分享 LINE 維持顯示，操作者才知道有沒有漏指定。
-        val rows = buildPlayerStatRows(roster, summarizeScorers(highlightMarkers), playerStatBook)
-            .filterNot { it.isUnassigned }
+        // v0.22.16：賽果圖是成績單，得分高到低、六項全零的沉到最底（Boss 指定）
+        val rows = buildPlayerStatRows(
+            roster, summarizeScorers(highlightMarkers), playerStatBook, sortByScore = true
+        ).filterNot { it.isUnassigned }
         if (rows.isEmpty()) return
 
         val nameW = 96f * k
@@ -5385,10 +5437,16 @@ class LiveActivity : AppCompatActivity(), ConnectChecker {
         // v0.22.0：名單上限 12→15，6→5 欄（15÷5＝三列剛好排滿，不留空位）。
         // v0.22.1：欄數改由人數推（固定兩列），原本的 5 欄常數不再需要。
         // 兩列＝視窗高度約 132dp，且靠上排（見 showPlayerPickerDialog），底部控制鈕不會被蓋到。
+        // v0.22.16：多一列標題（32dp＋margin），視窗高度約 170dp，離底部控制鈕仍有餘裕。
         // v0.22.9：選人視窗距離螢幕頂端的距離。要讓開最上面那排狀態字（碼率／名單／溫度／版本），
-        // 又不能太下面壓到底部控制鈕——這排字實測落在 73dp 以內，取 80dp。
-        const val SCORER_PICKER_TOP_MARGIN_DP = 80f
+        // 又不能太下面壓到底部控制鈕。
+        // v0.22.17：80dp 改 22dp（Boss 2026-09-07 實機回報，加了標題列後整個視窗壓住「移除標記」）。
+        // CPH2525（2412×1080、density 540）實測：狀態字那排底緣約 203px，視窗頂端 80dp 時
+        // 標題上緣掉到 432px，中間白白空掉快 70dp。收到 22dp 後標題上緣約 214px，剛好貼在狀態字下面。
+        const val SCORER_PICKER_TOP_MARGIN_DP = 22f
         const val SCORER_PICKER_TEXT_SP = 15f
+        // v0.22.16：標題列高度。比姓名按鈕（48dp）矮，加了這列也不會把視窗撐到壓住底部控制鈕。
+        const val SCORER_PICKER_TITLE_HEIGHT_DP = 32f
         // 半透明——選人當下仍看得到後面的直播畫面
         const val SCORER_PICKER_BUTTON_ALPHA = 0.8f
 

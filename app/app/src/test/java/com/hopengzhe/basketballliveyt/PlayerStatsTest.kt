@@ -36,7 +36,7 @@ class PlayerStatsTest {
     }
 
     @Test
-    fun `名單全部列出掛零也列且依得分排序`() {
+    fun `名單全部列出掛零也列且維持名單順序`() {
         val book = PlayerStatBook()
         book.add("陳志豪", PlayerStatType.REBOUND, 5)
         val rows = buildPlayerStatRows(
@@ -44,8 +44,8 @@ class PlayerStatsTest {
             listOf(ScorerTotal("李大同", 8)),
             book
         )
-        // v0.22.0：得分相同（都是 0）時，有籃板的陳志豪排在全零的王小明前面
-        assertEquals(listOf("李大同", "陳志豪", "王小明"), rows.map { it.name })
+        // v0.22.16：不再依得分重排——名單什麼順序就什麼順序（背號排序在 reloadRoster 做）
+        assertEquals(roster, rows.map { it.name })
         assertEquals(0, rows.first { it.name == "王小明" }.points)
         assertEquals(5, rows.first { it.name == "陳志豪" }.rebound)
     }
@@ -67,15 +67,37 @@ class PlayerStatsTest {
     }
 
     @Test
-    fun `零分時有記錄的排在全零之前只有失誤也算有記錄`() {
+    fun `有得分有數據都不會影響順序一律照名單`() {
+        // v0.22.16：得分高低、有沒有記錄都不再影響順序（改成背號小到大，排序在 reloadRoster）
         val names = listOf("全零甲", "只有失誤", "有籃板", "全零乙", "有得分")
         val book = PlayerStatBook()
         book.add("只有失誤", PlayerStatType.TURNOVER, 2)
         book.add("有籃板", PlayerStatType.REBOUND, 3)
         val rows = buildPlayerStatRows(names, listOf(ScorerTotal("有得分", 4)), book)
 
+        assertEquals(names, rows.map { it.name })
+    }
+
+    @Test
+    fun `成績單模式得分高到低全零沉底同分照背號順序`() {
+        // v0.22.16：分享 LINE 與賽果圖用 sortByScore＝true；傳進來已是背號序，
+        // 同分時穩定排序會保住背號順序（「三號」在「四號」前面）
+        val names = listOf("一號全零", "二號有籃板", "三號同分", "四號同分", "五號得分王")
+        val book = PlayerStatBook()
+        book.add("二號有籃板", PlayerStatType.REBOUND, 3)
+        val rows = buildPlayerStatRows(
+            names,
+            listOf(
+                ScorerTotal("五號得分王", 10),
+                ScorerTotal("三號同分", 6),
+                ScorerTotal("四號同分", 6)
+            ),
+            book,
+            sortByScore = true
+        )
+
         assertEquals(
-            listOf("有得分", "只有失誤", "有籃板", "全零甲", "全零乙"),
+            listOf("五號得分王", "三號同分", "四號同分", "二號有籃板", "一號全零"),
             rows.map { it.name }
         )
     }
